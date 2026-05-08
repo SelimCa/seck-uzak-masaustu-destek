@@ -6,6 +6,8 @@ const { hasGithubRepo } = require('./runtime-config');
 let ownerWindow = null;
 let initialized = false;
 let manualCheckRequested = false;
+let isDownloadingUpdate = false;
+let lastProgressBucket = -1;
 
 function sanitizeUpdaterErrorMessage(error) {
   const rawMessage = String(error?.message || '').trim();
@@ -37,6 +39,41 @@ function getDialogWindow() {
   return ownerWindow && !ownerWindow.isDestroyed() ? ownerWindow : null;
 }
 
+function setWindowProgress(value) {
+  const window = getDialogWindow();
+
+  if (!window) {
+    return;
+  }
+
+  window.setProgressBar(value);
+}
+
+function showDownloadNotification(body) {
+  const window = getDialogWindow();
+
+  if (window && !window.isVisible()) {
+    window.showInactive();
+  }
+
+  if (!app.isPackaged) {
+    return;
+  }
+
+  try {
+    const { Notification } = require('electron');
+    if (Notification.isSupported()) {
+      new Notification({
+        title: 'Guncelleme',
+        body,
+        silent: true,
+      }).show();
+    }
+  }
+  catch {
+  }
+}
+
 function initUpdater(window) {
   ownerWindow = window;
 
@@ -60,7 +97,47 @@ function initUpdater(window) {
     });
 
     if (result.response === 0) {
-      await autoUpdater.downloadUpdate();
+      if (isDownloadingUpdate) {
+        return;
+      }
+
+      isDownloadingUpdate = true;
+      lastProgressBucket = -1;
+      setWindowProgress(0.02);
+      showDownloadNotification(`v${info.version} indirilmeye basladi. Tamamlaninca kurulum sorulacak.`);
+
+      try {
+        await autoUpdater.downloadUpdate();
+      }
+      catch (error) {
+        isDownloadingUpdate = false;
+        setWindowProgress(-1);
+
+        await dialog.showMessageBox(getDialogWindow(), {
+          type: 'warning',
+          buttons: ['Tamam'],
+          defaultId: 0,
+          title: 'Guncelleme hatasi',
+          message: 'Guncelleme indirilemedi.',
+          detail: sanitizeUpdaterErrorMessage(error),
+        });
+      }
+    }
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (!isDownloadingUpdate) {
+      return;
+    }
+
+    const percent = Number(progress?.percent || 0);
+    const normalized = Math.max(0.02, Math.min(percent / 100, 1));
+    setWindowProgress(normalized);
+
+    const progressBucket = Math.floor(percent / 25);
+    if (progressBucket > lastProgressBucket) {
+      lastProgressBucket = progressBucket;
+      showDownloadNotification(`Guncelleme indiriliyor: %${Math.round(percent)}`);
     }
   });
 
@@ -80,6 +157,8 @@ function initUpdater(window) {
   });
 
   autoUpdater.on('update-downloaded', async (info) => {
+    isDownloadingUpdate = false;
+    setWindowProgress(-1);
     manualCheckRequested = false;
     const result = await dialog.showMessageBox(getDialogWindow(), {
       type: 'question',
@@ -96,6 +175,9 @@ function initUpdater(window) {
   });
 
   autoUpdater.on('error', async (error) => {
+    isDownloadingUpdate = false;
+    setWindowProgress(-1);
+
     if (!manualCheckRequested) {
       return;
     }
