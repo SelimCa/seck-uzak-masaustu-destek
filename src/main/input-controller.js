@@ -1,3 +1,4 @@
+const { app } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 
@@ -12,7 +13,9 @@ class InputController {
       return;
     }
 
-    const scriptPath = path.join(__dirname, 'windows-input.ps1');
+    const scriptPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar.unpacked', 'src', 'main', 'windows-input.ps1')
+      : path.join(__dirname, 'windows-input.ps1');
     this.isBroken = false;
     this.process = spawn('powershell.exe', [
       '-NoProfile',
