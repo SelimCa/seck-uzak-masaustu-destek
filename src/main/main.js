@@ -185,15 +185,6 @@ function buildApplicationMenu() {
         { label: 'Kapat', role: 'close' },
       ],
     },
-    {
-      label: 'Yardim',
-      submenu: [
-        {
-          label: 'GitHub Sayfasini Ac',
-          click: () => shell.openExternal('https://github.com/SelimCa/seck-uzak-masaustu-destek'),
-        },
-      ],
-    },
   ]);
 }
 

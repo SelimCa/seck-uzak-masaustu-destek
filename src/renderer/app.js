@@ -34,8 +34,6 @@
     tabFavoritesButton: $('#tabFavoritesButton'),
     tabRecentButton: $('#tabRecentButton'),
     tabDiscoverButton: $('#tabDiscoverButton'),
-    fileInput: $('#fileInput'),
-    sendFileButton: $('#sendFileButton'),
     transferStatus: $('#transferStatus'),
     openAdminPanelButton: $('#openAdminPanelButton'),
     adminPanel: $('#adminPanel'),
@@ -1025,34 +1023,6 @@
     return payload;
   }
 
-  async function handleSendFile() {
-    const file = refs.fileInput.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    if (state.dataChannel?.readyState !== 'open') {
-      setText(refs.transferStatus, 'Aktif baglanti yok. Dosya gonderilemedi.');
-      return;
-    }
-
-    state.dataChannel.send(JSON.stringify({
-      kind: 'file-meta',
-      fileName: file.name,
-      size: file.size,
-    }));
-
-    const buffer = new Uint8Array(await file.arrayBuffer());
-    const chunkSize = 64 * 1024;
-    for (let offset = 0; offset < buffer.length; offset += chunkSize) {
-      state.dataChannel.send(buffer.slice(offset, offset + chunkSize));
-    }
-
-    state.dataChannel.send(JSON.stringify({ kind: 'file-end' }));
-    setText(refs.transferStatus, `${file.name} gonderildi.`);
-    refs.fileInput.value = '';
-  }
-
   function openRemoteWindow(code, credential, alias) {
     const targetCode = formatCode(code);
     if (normalizeCode(targetCode).length !== 9) {
@@ -1263,9 +1233,6 @@
         setText(refs.viewerStatus, error.message);
       }
     });
-
-    refs.sendFileButton.addEventListener('click', () => refs.fileInput.click());
-    refs.fileInput.addEventListener('change', handleSendFile);
 
     refs.tabAllButton.addEventListener('click', () => setActiveTab('all'));
     refs.tabFavoritesButton.addEventListener('click', () => setActiveTab('favorites'));
