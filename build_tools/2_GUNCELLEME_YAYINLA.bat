@@ -27,7 +27,7 @@ if "%GITHUB_REPO%"=="" (
     exit /b 1
 )
 
-set "INSTALLER=%ROOT%\dist\Seck Uzak Masaustu Destek Setup %APP_VERSION%.exe"
+set "INSTALLER=%ROOT%\dist\Seck.Uzak.Masaustu.Destek.Setup.%APP_VERSION%.exe"
 set "BLOCKMAP=%INSTALLER%.blockmap"
 set "LATEST=%ROOT%\dist\latest.yml"
 

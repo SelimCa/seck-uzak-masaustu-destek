@@ -1,7 +1,7 @@
 {
   "name": "seck-uzak-masaustu-destek",
   "productName": "Seck Uzak Masaustu Destek",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Windows odakli uzak masaustu destek uygulamasi",
   "main": "src/main/main.js",
   "scripts": {
@@ -33,6 +33,7 @@
   "build": {
     "appId": "com.seck.uzakmasaustu",
     "productName": "Seck Uzak Masaustu Destek",
+    "artifactName": "Seck.Uzak.Masaustu.Destek.Setup.${version}.${ext}",
     "directories": {
       "output": "dist"
     },

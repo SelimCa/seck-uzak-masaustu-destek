@@ -7,6 +7,24 @@ let ownerWindow = null;
 let initialized = false;
 let manualCheckRequested = false;
 
+function sanitizeUpdaterErrorMessage(error) {
+  const rawMessage = String(error?.message || '').trim();
+
+  if (!rawMessage) {
+    return 'Sunucuya ulasilamadi. Internet baglantisini ve guncelleme paketlerini kontrol et.';
+  }
+
+  if (rawMessage.includes('status 404') || rawMessage.includes('Cannot download')) {
+    return 'Guncelleme paketi sunucuda bulunamadi. Biraz sonra tekrar dene.';
+  }
+
+  if (/github|https?:\/\//i.test(rawMessage)) {
+    return 'Guncelleme sunucusuna baglanilamadi. Daha sonra tekrar dene.';
+  }
+
+  return rawMessage;
+}
+
 function normalizeReleaseNotes(notes) {
   if (Array.isArray(notes)) {
     return notes.map((item) => item.note || '').filter(Boolean).join('\n\n');
@@ -89,7 +107,7 @@ function initUpdater(window) {
       defaultId: 0,
       title: 'Guncelleme hatasi',
       message: 'Guncelleme kontrolu basarisiz oldu.',
-      detail: error?.message || 'Bilinmeyen hata',
+      detail: sanitizeUpdaterErrorMessage(error),
     });
   });
 
