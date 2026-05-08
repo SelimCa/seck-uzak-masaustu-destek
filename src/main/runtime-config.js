@@ -6,6 +6,7 @@ const DEFAULT_CONFIG = {
   appVersion: '0.1.0',
   githubRepo: 'SelimCa/seck-uzak-masaustu-destek',
   licenseFile: 'licenses.json',
+  licenseRequestWebhookUrl: '',
 };
 
 function getWorkspaceRoot() {

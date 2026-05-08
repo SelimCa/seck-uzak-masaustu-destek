@@ -1,13 +1,13 @@
 # Seck Uzak Masaustu Destek
 
-Bu proje, Windows bilgisayarlar arasinda calisan ve GitHub uzerinden guncellenebilen uzak masaustu destek uygulamasidir.
+Bu proje, Windows bilgisayarlar arasinda calisan, bilgisayar koduna gore lisanslanan ve GitHub uzerinden guncellenebilen uzak masaustu destek uygulamasidir.
 
 Saglanan ozellikler:
 
 - Her cihaz icin kalici bilgisayar kodu
 - Her 30 saniyede yenilenen otomatik sifre
 - Istege bagli sabit sifre tanimlama
-- GitHub tabanli lisans dogrulama
+- Bilgisayar koduna gore GitHub tabanli lisans dogrulama
 - GitHub Release tabanli guncelleme bildirimi
 - Ekran paylasimi
 - Fare ve temel klavye kontrolu
@@ -18,7 +18,7 @@ Not: Sunucu ve guncelleme adresleri kullanicidan gizlidir. Uygulama arka plandak
 ## Surum ve Lisans Dosyalari
 
 - version.json: Surum numarasi ve GitHub repo bilgisi buradan yonetilir.
-- licenses.json: Lisans anahtarlari, aktiflik ve son kullanma tarihi buradan yonetilir.
+- licenses.json: Bilgisayar kodu bazli lisans kayitlari, aktiflik ve son kullanma tarihi buradan yonetilir.
 
 Ornek version.json:
 
@@ -34,8 +34,8 @@ Ornek licenses.json:
 
 ```json
 {
-	"licenses": {
-		"ABC-123-XYZ-999": {
+	"devices": {
+		"123-456-789": {
 			"name": "Musteri Unvani",
 			"active": true,
 			"expires": "2027-12-31"
@@ -43,6 +43,18 @@ Ornek licenses.json:
 	}
 }
 ```
+
+Lisans mantigi:
+
+- Uygulama acilinca cihaz kodu gorunur.
+- Bu kod normal kullanimda sabit kalir; config silinirse yeniden uretilir.
+- GitHub uzerindeki licenses.json dosyasinda ayni kod varsa lisans aktif olur.
+- Kullanici arayuzunden Lisansi Yenile diyerek yeni lisans durumunu aninda cekebilir.
+- Lisans Talep Et butonu version.json icindeki licenseRequestWebhookUrl adresine webhook POST atar.
+
+Varsayilan webhook yolu [version.json](version.json) icinde /license-request olarak tanimlidir.
+Bu yol, istemcinin bagli oldugu signalServerUrl adresi uzerinden gercek webhook adresine cozulur.
+Ornek: signal sunucun http://destek.firma.com:3131 ise lisans talebi http://destek.firma.com:3131/license-request adresine gider.
 
 ## Gereksinimler
 
@@ -80,6 +92,15 @@ cmd /c npm run build-win
 
 Not: Build komutlari calismadan once version.json icindeki appVersion degeri package.json dosyasina otomatik senkronlanir.
 
+Hazir bat dosyalari:
+
+- KUR_VE_CALISTIR.bat: npm install yapip uygulamayi baslatir.
+- CALISTIR.bat: uygulamayi dogrudan baslatir.
+- build_tools/0_GITHUB_ILK_KURULUM.bat: GitHub repo kurulumunu yapar.
+- build_tools/1_EXE_OLUSTUR.bat: Windows installer uretir.
+- build_tools/2_GUNCELLEME_YAYINLA.bat: release ve update dosyalarini GitHub'a yukler.
+- build_tools/3_TUM_DEGISIKLIKLERI_PUSH.bat: tum kaynak kodu commit edip push eder.
+
 Olusan dosyalar:
 
 - dist/*.exe (NSIS kurulum)
@@ -106,13 +127,30 @@ Kurulu bilgisayarlar programi actiginda guncelleme uyarisi alsin istiyorsan su a
 
 ## Lisans Dagitimi
 
-1. licenses.json dosyasina yeni lisans anahtari ekle.
+1. licenses.json dosyasina yeni bilgisayar kodunu ekle.
 2. active alanini true yap.
 3. Gerekirse expires tarihi ver.
 4. Dosyayi GitHub repo kokune gonder.
-5. Musteri uygulamadaki Lisans Anahtari alanina bu anahtari girsin.
+5. Musteri uygulamada Lisansi Yenile butonuna basin.
 
 Gecerli lisans yoksa uygulama acilir ama baglanti ozellikleri kilitli kalir.
+
+Webhook tabanli lisans talebi icin version.json icine ornek olarak su alan yazilir:
+
+```json
+{
+	"licenseRequestWebhookUrl": "/license-request"
+}
+```
+
+Node webhook alicisi artik mevcut signal server icine gomulu gelir.
+Istersen bu endpoint gelen talepleri Discord veya Telegram'a da iletebilir:
+
+- SECK_DISCORD_WEBHOOK_URL: Discord webhook adresi
+- SECK_TELEGRAM_BOT_TOKEN: Telegram bot token
+- SECK_TELEGRAM_CHAT_ID: Telegram chat id
+
+Gelen lisans talepleri sunucu tarafinda license_requests.json dosyasina kaydedilir.
 
 ## Arka Plan Sunucu Adresi (Yonetici Ayari)
 

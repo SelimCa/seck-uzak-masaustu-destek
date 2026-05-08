@@ -1,5 +1,7 @@
 {
-  "appVersion": "0.1.0",
+  "appVersion": "0.1.1",
   "githubRepo": "SelimCa/seck-uzak-masaustu-destek",
-  "licenseFile": "licenses.json"
+  "licenseFile": "licenses.json",
+  "licenseRequestWebhookUrl": "/license-request",
+  "adminAccessKey": "selim363636"
 }

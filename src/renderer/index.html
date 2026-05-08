@@ -68,8 +68,12 @@
           <input id="fixedPasswordInput" type="password" placeholder="Istersen sabit sifre belirle">
         </label>
         <label class="field">
-          <span>Lisans anahtari</span>
-          <input id="licenseKeyInput" type="text" placeholder="Orn: ABCD-1234-EFGH-5678">
+          <span>Lisans modeli</span>
+          <input type="text" value="Bilgisayar koduna gore otomatik lisans" readonly>
+        </label>
+        <label class="field">
+          <span>Yonetici anahtari</span>
+          <input id="adminAccessKeyInput" type="password" placeholder="Yonetici panelini acmak icin anahtari gir">
         </label>
         <div class="actions">
           <button id="savePasswordButton" class="primary">Sabit Sifreyi Kaydet</button>
@@ -77,10 +81,13 @@
           <button id="shareScreenButton">Ekran Paylasimini Hazirla</button>
         </div>
         <div class="actions compact-actions">
-          <button id="saveLicenseButton">Lisansi Kaydet</button>
+          <button id="activateAdminButton">Yonetici Modunu Ac</button>
+          <button id="refreshLicenseButton">Lisansi Yenile</button>
+          <button id="requestLicenseButton">Lisans Talep Et</button>
           <button id="checkUpdatesButton">Guncellemeyi Kontrol Et</button>
         </div>
         <p id="licenseStatus" class="help">Lisans kontrol ediliyor...</p>
+        <p id="adminModeStatus" class="help">Yonetici modu kapali.</p>
         <p id="hostStatus" class="help">Baglanti geldiginde paylasmak istedigin ekran secilecek veya onceki secim kullanilacak.</p>
         <div class="session-control">
           <p id="connectedViewer" class="help">Bagli istemci yok.</p>
@@ -112,6 +119,44 @@
           <button id="sendFileButton" class="primary">Dosyayi Gonder</button>
         </div>
         <p id="transferStatus" class="help">Gelen dosyalar otomatik olarak Indirilenler/Seck Uzak Masaustu Gelenler klasorune kaydedilir.</p>
+      </section>
+
+      <section id="adminPanel" class="panel admin-panel hidden">
+        <div class="saved-header admin-header">
+          <h2>Yonetim</h2>
+          <div class="saved-tabs">
+            <button id="adminTabRequestsButton" class="chip active">Lisans Talepleri</button>
+            <button id="adminTabLicensesButton" class="chip">Lisanslari Yonet</button>
+            <button id="adminRefreshButton" class="chip">Yenile</button>
+          </div>
+        </div>
+
+        <div id="adminRequestsView" class="admin-view"></div>
+
+        <div id="adminLicensesView" class="admin-view hidden">
+          <div class="admin-form-grid">
+            <label class="field">
+              <span>Bilgisayar kodu</span>
+              <input id="adminLicenseDeviceCodeInput" type="text" placeholder="123-456-789">
+            </label>
+            <label class="field">
+              <span>Unvan / isim</span>
+              <input id="adminLicenseNameInput" type="text" placeholder="Musteri adi">
+            </label>
+            <label class="field">
+              <span>Son kullanma</span>
+              <input id="adminLicenseExpiryInput" type="text" placeholder="2027-12-31 veya bos">
+            </label>
+            <label class="field checkbox-field">
+              <span>Lisans aktif</span>
+              <input id="adminLicenseActiveInput" type="checkbox" checked>
+            </label>
+          </div>
+          <div class="actions compact-actions">
+            <button id="adminSaveLicenseButton" class="primary">Lisansi Kaydet</button>
+          </div>
+          <div id="adminLicensesList" class="admin-list"></div>
+        </div>
       </section>
     </main>
   </div>

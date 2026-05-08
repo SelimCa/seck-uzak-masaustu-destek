@@ -11,13 +11,16 @@
     rollingPassword: $('#rollingPassword'),
     rollingCountdown: $('#rollingCountdown'),
     fixedPasswordInput: $('#fixedPasswordInput'),
-    licenseKeyInput: $('#licenseKeyInput'),
+    adminAccessKeyInput: $('#adminAccessKeyInput'),
     savePasswordButton: $('#savePasswordButton'),
-    saveLicenseButton: $('#saveLicenseButton'),
+    activateAdminButton: $('#activateAdminButton'),
+    refreshLicenseButton: $('#refreshLicenseButton'),
+    requestLicenseButton: $('#requestLicenseButton'),
     checkUpdatesButton: $('#checkUpdatesButton'),
     clearPasswordButton: $('#clearPasswordButton'),
     shareScreenButton: $('#shareScreenButton'),
     licenseStatus: $('#licenseStatus'),
+    adminModeStatus: $('#adminModeStatus'),
     hostStatus: $('#hostStatus'),
     connectedViewer: $('#connectedViewer'),
     endSessionButton: $('#endSessionButton'),
@@ -36,6 +39,18 @@
     fileInput: $('#fileInput'),
     sendFileButton: $('#sendFileButton'),
     transferStatus: $('#transferStatus'),
+    adminPanel: $('#adminPanel'),
+    adminTabRequestsButton: $('#adminTabRequestsButton'),
+    adminTabLicensesButton: $('#adminTabLicensesButton'),
+    adminRefreshButton: $('#adminRefreshButton'),
+    adminRequestsView: $('#adminRequestsView'),
+    adminLicensesView: $('#adminLicensesView'),
+    adminLicenseDeviceCodeInput: $('#adminLicenseDeviceCodeInput'),
+    adminLicenseNameInput: $('#adminLicenseNameInput'),
+    adminLicenseExpiryInput: $('#adminLicenseExpiryInput'),
+    adminLicenseActiveInput: $('#adminLicenseActiveInput'),
+    adminSaveLicenseButton: $('#adminSaveLicenseButton'),
+    adminLicensesList: $('#adminLicensesList'),
   };
 
   const DEVICE_BOOK_KEY = 'seck-device-book-v1';
@@ -52,6 +67,8 @@
     selectedSourceId: null,
     savedFilter: 'all',
     activeViewerName: '',
+    adminTab: 'requests',
+    adminDashboard: { requests: [], licenses: [], source: '' },
   };
 
   function setBadge(element, text, type) {
@@ -67,6 +84,15 @@
     if (element) {
       element.textContent = text;
     }
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function updateActiveViewerUi() {
@@ -240,16 +266,19 @@
       ? 'Sabit sifre aktif, degistirmek icin yeni sifre gir'
       : 'Istersen sabit sifre belirle';
 
-    if (document.activeElement !== refs.licenseKeyInput) {
-      refs.licenseKeyInput.value = state.config.licenseKey || '';
-    }
-
     const licenseState = state.config.licenseStatus || { ok: false, message: 'Lisans kontrol ediliyor...' };
-    setText(refs.licenseStatus, licenseState.message || 'Lisans kontrol ediliyor...');
+    const statusParts = [licenseState.message || 'Lisans kontrol ediliyor...'];
+    if (licenseState.deviceCode) {
+      statusParts.push(`Bilgisayar Kodu: ${licenseState.deviceCode}`);
+    }
+    setText(refs.licenseStatus, statusParts.join(' '));
 
     if (!licenseState.ok) {
       setBadge(refs.socketBadge, 'Lisans gerekli', 'danger');
     }
+
+    setText(refs.adminModeStatus, state.config.adminAuthorized ? 'Yonetici modu aktif.' : 'Yonetici modu kapali.');
+    refs.adminPanel.classList.toggle('hidden', !state.config.adminAuthorized);
   }
 
   async function refreshConfig() {
@@ -270,6 +299,79 @@
 
   function getLicenseMessage() {
     return state.config?.licenseStatus?.message || 'Lisans gerekli.';
+  }
+
+  function setAdminTab(tab) {
+    state.adminTab = tab;
+    refs.adminTabRequestsButton.classList.toggle('active', tab === 'requests');
+    refs.adminTabLicensesButton.classList.toggle('active', tab === 'licenses');
+    refs.adminRequestsView.classList.toggle('hidden', tab !== 'requests');
+    refs.adminLicensesView.classList.toggle('hidden', tab !== 'licenses');
+  }
+
+  function populateAdminLicenseForm(item = {}) {
+    refs.adminLicenseDeviceCodeInput.value = item.deviceCode || '';
+    refs.adminLicenseNameInput.value = item.name || '';
+    refs.adminLicenseExpiryInput.value = item.expires || '';
+    refs.adminLicenseActiveInput.checked = item.active !== false;
+  }
+
+  function renderAdminRequests() {
+    const requests = state.adminDashboard.requests || [];
+    if (!requests.length) {
+      refs.adminRequestsView.innerHTML = '<p class="help">Bekleyen lisans talebi yok.</p>';
+      return;
+    }
+
+    refs.adminRequestsView.innerHTML = requests.map((item) => `
+      <article class="admin-card">
+        <div class="admin-card-title">${escapeHtml(item.deviceCode)}</div>
+        <div class="admin-card-meta">Bilgisayar Adi: ${escapeHtml(item.deviceName || '-')}</div>
+        <div class="admin-card-meta">Surum: ${escapeHtml(item.appVersion || '-')}</div>
+        <div class="admin-card-meta">Durum: ${escapeHtml(item.status || 'pending')}</div>
+        <div class="admin-card-meta">Tarih: ${escapeHtml(new Date(item.updatedAt || item.requestedAt || Date.now()).toLocaleString('tr-TR'))}</div>
+        <div class="admin-card-actions">
+          <button data-admin-action="approve-request" data-code="${escapeHtml(item.deviceCode)}" data-name="${escapeHtml(item.deviceName || '')}">Onayla</button>
+          <button data-admin-action="fill-request" data-code="${escapeHtml(item.deviceCode)}" data-name="${escapeHtml(item.deviceName || '')}">Lisans Formuna Al</button>
+          <button data-admin-action="delete-request" data-code="${escapeHtml(item.deviceCode)}">Sil</button>
+        </div>
+      </article>
+    `).join('');
+  }
+
+  function renderAdminLicenses() {
+    const licenses = state.adminDashboard.licenses || [];
+    if (!licenses.length) {
+      refs.adminLicensesList.innerHTML = '<p class="help">Kayitli lisans yok.</p>';
+      return;
+    }
+
+    refs.adminLicensesList.innerHTML = licenses.map((item) => `
+      <article class="admin-card">
+        <div class="admin-card-title">${escapeHtml(item.deviceCode)}</div>
+        <div class="admin-card-meta">Ad: ${escapeHtml(item.name || '-')}</div>
+        <div class="admin-card-meta">Durum: ${item.active ? 'Aktif' : 'Pasif'}</div>
+        <div class="admin-card-meta">Son kullanma: ${escapeHtml(item.expires || '-')}</div>
+        <div class="admin-card-actions">
+          <button data-admin-action="edit-license" data-code="${escapeHtml(item.deviceCode)}">Duzenle</button>
+          <button data-admin-action="delete-license" data-code="${escapeHtml(item.deviceCode)}">Sil</button>
+        </div>
+      </article>
+    `).join('');
+  }
+
+  function renderAdminDashboard() {
+    renderAdminRequests();
+    renderAdminLicenses();
+  }
+
+  async function refreshAdminDashboard() {
+    if (!state.config?.adminAuthorized) {
+      return;
+    }
+
+    state.adminDashboard = await window.anydeksApi.getAdminDashboard();
+    renderAdminDashboard();
   }
 
   function attachSocketHandlers(socket) {
@@ -742,22 +844,43 @@
       setText(refs.hostStatus, 'Sabit sifre temizlendi.');
     });
 
-    refs.saveLicenseButton.addEventListener('click', async () => {
-      state.config = await window.anydeksApi.setLicenseKey(refs.licenseKeyInput.value);
+    refs.activateAdminButton.addEventListener('click', async () => {
+      const result = await window.anydeksApi.authorizeAdmin(refs.adminAccessKeyInput.value);
+      setText(refs.hostStatus, result.message || 'Yonetici modu sonucu alinamadi.');
+      if (result.ok) {
+        refs.adminAccessKeyInput.value = '';
+        await refreshConfig();
+        await refreshAdminDashboard();
+        setAdminTab('requests');
+      }
+    });
+
+    refs.refreshLicenseButton.addEventListener('click', async () => {
+      state.config = await window.anydeksApi.refreshLicenseStatus();
       updateConfigView();
 
-      if (canUseRemoteFeatures()) {
-        try {
-          await ensureSocket();
-          setText(refs.hostStatus, 'Lisans kaydedildi ve baglanti servisi hazir.');
-        }
-        catch (error) {
-          setText(refs.hostStatus, error.message);
-        }
+      if (!canUseRemoteFeatures()) {
+        setText(refs.hostStatus, getLicenseMessage());
         return;
       }
 
-      setText(refs.hostStatus, getLicenseMessage());
+      try {
+        await ensureSocket();
+        setText(refs.hostStatus, 'Lisans yenilendi ve baglanti servisi hazir.');
+      }
+      catch (error) {
+        setText(refs.hostStatus, error.message);
+      }
+    });
+
+    refs.requestLicenseButton.addEventListener('click', async () => {
+      try {
+        const result = await window.anydeksApi.requestLicense();
+        setText(refs.hostStatus, result?.message || 'Lisans talebi gonderildi.');
+      }
+      catch (error) {
+        setText(refs.hostStatus, `Lisans talebi gonderilemedi: ${error.message}`);
+      }
     });
 
     refs.checkUpdatesButton.addEventListener('click', async () => {
@@ -825,6 +948,90 @@
     refs.tabAllButton.addEventListener('click', () => setActiveTab('all'));
     refs.tabFavoritesButton.addEventListener('click', () => setActiveTab('favorites'));
     refs.tabRecentButton.addEventListener('click', () => setActiveTab('recent'));
+    refs.adminTabRequestsButton.addEventListener('click', () => setAdminTab('requests'));
+    refs.adminTabLicensesButton.addEventListener('click', () => setAdminTab('licenses'));
+    refs.adminRefreshButton.addEventListener('click', async () => {
+      await refreshAdminDashboard();
+      setText(refs.hostStatus, 'Yonetim listeleri yenilendi.');
+    });
+    refs.adminSaveLicenseButton.addEventListener('click', async () => {
+      state.adminDashboard = await window.anydeksApi.upsertLicense({
+        deviceCode: refs.adminLicenseDeviceCodeInput.value,
+        name: refs.adminLicenseNameInput.value,
+        expires: refs.adminLicenseExpiryInput.value,
+        active: refs.adminLicenseActiveInput.checked,
+      });
+      renderAdminDashboard();
+      setAdminTab('licenses');
+      setText(refs.hostStatus, 'Lisans kaydi guncellendi.');
+    });
+    refs.adminRequestsView.addEventListener('click', async (event) => {
+      const button = event.target.closest('button[data-admin-action]');
+      if (!button) {
+        return;
+      }
+
+      const action = button.getAttribute('data-admin-action');
+      const deviceCode = button.getAttribute('data-code') || '';
+      const deviceName = button.getAttribute('data-name') || '';
+
+      if (action === 'fill-request') {
+        populateAdminLicenseForm({ deviceCode, name: deviceName, active: true, expires: '' });
+        setAdminTab('licenses');
+        return;
+      }
+
+      if (action === 'approve-request') {
+        const expires = window.prompt('Son kullanma tarihi (YYYY-AA-GG, bos olabilir):', '');
+        state.adminDashboard = await window.anydeksApi.approveLicenseRequest({
+          deviceCode,
+          name: deviceName || deviceCode,
+          expires: expires === null ? '' : expires,
+        });
+        renderAdminDashboard();
+        setText(refs.hostStatus, `${deviceCode} icin lisans onaylandi.`);
+        return;
+      }
+
+      if (action === 'delete-request') {
+        if (!window.confirm(`${deviceCode} lisans talebi silinsin mi?`)) {
+          return;
+        }
+
+        const requests = await window.anydeksApi.deleteLicenseRequest(deviceCode);
+        state.adminDashboard.requests = requests;
+        renderAdminRequests();
+        setText(refs.hostStatus, `${deviceCode} talebi silindi.`);
+      }
+    });
+    refs.adminLicensesList.addEventListener('click', async (event) => {
+      const button = event.target.closest('button[data-admin-action]');
+      if (!button) {
+        return;
+      }
+
+      const action = button.getAttribute('data-admin-action');
+      const deviceCode = button.getAttribute('data-code') || '';
+      const item = (state.adminDashboard.licenses || []).find((entry) => entry.deviceCode === deviceCode);
+      if (!item) {
+        return;
+      }
+
+      if (action === 'edit-license') {
+        populateAdminLicenseForm(item);
+        return;
+      }
+
+      if (action === 'delete-license') {
+        if (!window.confirm(`${deviceCode} lisansi silinsin mi?`)) {
+          return;
+        }
+
+        state.adminDashboard = await window.anydeksApi.deleteLicense(deviceCode);
+        renderAdminDashboard();
+        setText(refs.hostStatus, `${deviceCode} lisansi silindi.`);
+      }
+    });
 
     installSavedListActions();
   }
@@ -851,8 +1058,19 @@
     listenRemoteUpdates();
     renderSavedDevices();
     updateActiveViewerUi();
+    if (state.config?.adminAuthorized) {
+      await refreshAdminDashboard();
+    }
+    setAdminTab('requests');
 
     setInterval(refreshConfig, 1000);
+    setInterval(() => {
+      if (!state.config?.adminAuthorized) {
+        return;
+      }
+
+      refreshAdminDashboard().catch(() => {});
+    }, 4000);
   }
 
   window.addEventListener('beforeunload', () => {

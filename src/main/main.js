@@ -1,4 +1,4 @@
-const { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, screen, shell, Tray, session } = require('electron');
+const { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, Notification, screen, shell, Tray, session } = require('electron');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,10 +15,18 @@ const {
   verifyFixedPassword,
 } = require('../shared/auth');
 const { InputController } = require('./input-controller');
-const { refreshLicenseStatus } = require('./license-manager');
+const {
+  approveLicenseRequest,
+  deleteLicense,
+  deleteLicenseRequest,
+  getAdminDashboard,
+  upsertLicense,
+  verifyAdminAccessKey,
+} = require('./license-admin');
+const { refreshLicenseStatus, submitLicenseRequest } = require('./license-manager');
 const { getVersionConfig } = require('./runtime-config');
 const { checkForAppUpdates, initUpdater } = require('./updater');
-const { startSignalServer } = require('../server/server');
+const { serverEvents, startSignalServer } = require('../server/server');
 
 const AUTO_NETWORK = {
   signalServerUrl: process.env.SECK_SIGNAL_SERVER_URL || 'http://127.0.0.1:3131',
@@ -32,6 +40,7 @@ let mainWindow;
 let tray;
 let isQuitting = false;
 let preferredDesktopSourceId = null;
+let lastLicenseNotificationAt = 0;
 let licenseState = {
   ok: true,
   code: 'booting',
@@ -46,6 +55,52 @@ const TRAY_ICON_PATH = path.join(__dirname, '../assets/icons/tray-icon.png');
 const SIGNAL_SERVER_PORT = Number(process.env.ANYDEKS_SIGNAL_PORT || 3131);
 const DEPRECATED_REMOTE_SIGNAL_URL = 'http://85.105.250.108:3131';
 let embeddedSignalServer = null;
+
+function showLicenseRequestNotification(requestItem) {
+  const now = Date.now();
+  if (now - lastLicenseNotificationAt < 2500) {
+    return;
+  }
+
+  lastLicenseNotificationAt = now;
+  const title = 'Yeni Lisans Talebi';
+  const body = [
+    `Bilgisayar Kodu: ${requestItem.deviceCode}`,
+    `Bilgisayar Adi: ${requestItem.deviceName || '-'}`,
+  ].join('\n');
+
+  if (Notification.isSupported()) {
+    const notification = new Notification({
+      title,
+      body,
+      icon: APP_ICON_PATH,
+      silent: false,
+    });
+
+    notification.on('click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+
+    notification.show();
+  }
+
+  if (tray?.displayBalloon) {
+    tray.displayBalloon({
+      iconType: 'info',
+      title,
+      content: body,
+      largeIcon: true,
+    });
+  }
+
+  if (mainWindow && !mainWindow.isVisible()) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
+}
 
 async function resolveDesktopCaptureSource() {
   const sources = await desktopCapturer.getSources({
@@ -130,10 +185,10 @@ function loadConfig() {
       rollingSecret: parsed.rollingSecret || generateSecret(),
       fixedPasswordHash: parsed.fixedPasswordHash || '',
       fixedPasswordSalt: parsed.fixedPasswordSalt || '',
-      licenseKey: String(parsed.licenseKey || '').trim().toUpperCase(),
       turnServerUrl: AUTO_NETWORK.turnServerUrl,
       turnUsername: AUTO_NETWORK.turnUsername,
       turnPassword: AUTO_NETWORK.turnPassword,
+      adminAuthorized: Boolean(parsed.adminAuthorized),
       permissionsPrompted: Boolean(parsed.permissionsPrompted),
       startupEnabled: parsed.startupEnabled === undefined ? true : Boolean(parsed.startupEnabled),
       firewallRuleAdded: Boolean(parsed.firewallRuleAdded),
@@ -152,10 +207,10 @@ function createDefaultConfig() {
     rollingSecret: generateSecret(),
     fixedPasswordHash: '',
     fixedPasswordSalt: '',
-    licenseKey: '',
     turnServerUrl: AUTO_NETWORK.turnServerUrl,
     turnUsername: AUTO_NETWORK.turnUsername,
     turnPassword: AUTO_NETWORK.turnPassword,
+    adminAuthorized: false,
     permissionsPrompted: false,
     startupEnabled: true,
     firewallRuleAdded: false,
@@ -179,8 +234,8 @@ function publicConfig() {
     turnPassword: config.turnPassword,
     deviceCode: config.deviceCode,
     deviceName: config.deviceName,
-    licenseKey: config.licenseKey,
     licenseStatus: licenseState,
+    adminAuthorized: Boolean(config.adminAuthorized),
     hasFixedPassword: Boolean(config.fixedPasswordHash),
     rollingPassword: generateRollingPassword(config.rollingSecret),
     rollingPasswordTtl: secondsUntilPasswordRefresh(),
@@ -382,7 +437,7 @@ app.whenReady().then(async () => {
   await ensureEmbeddedSignalServer();
   configureDisplayMediaHandling();
   app.setAppUserModelId('com.seck.uzakmasaustu');
-  licenseState = await refreshLicenseStatus(config.licenseKey);
+  licenseState = await refreshLicenseStatus(config.deviceCode);
   saveConfig();
   app.setLoginItemSettings({
     openAtLogin: Boolean(config.startupEnabled),
@@ -392,6 +447,7 @@ app.whenReady().then(async () => {
   createWindow();
   initUpdater(mainWindow);
   createTray();
+  serverEvents.on('license-request', showLicenseRequestNotification);
   ensureFirstRunPermissions();
   void checkForAppUpdates();
 
@@ -410,6 +466,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  serverEvents.removeListener('license-request', showLicenseRequestNotification);
 
   if (embeddedSignalServer) {
     embeddedSignalServer.close();
@@ -453,23 +510,78 @@ ipcMain.handle('config:set-fixed-password', (_event, password) => {
   return publicConfig();
 });
 
-ipcMain.handle('config:set-license-key', async (_event, licenseKey) => {
-  config.licenseKey = String(licenseKey || '').trim().toUpperCase();
-  saveConfig();
-  licenseState = await refreshLicenseStatus(config.licenseKey);
-  return publicConfig();
-});
-
 ipcMain.handle('config:get-secret-state', () => ({
   rollingSecret: config.rollingSecret,
   fixedPasswordHash: config.fixedPasswordHash,
   fixedPasswordSalt: config.fixedPasswordSalt,
 }));
 
+ipcMain.handle('admin:authorize', (_event, accessKey) => {
+  config.adminAuthorized = verifyAdminAccessKey(accessKey);
+  saveConfig();
+  return {
+    ok: config.adminAuthorized,
+    adminAuthorized: config.adminAuthorized,
+    message: config.adminAuthorized ? 'Yonetici modu aktif edildi.' : 'Yonetici anahtari hatali.',
+  };
+});
+
+ipcMain.handle('admin:get-dashboard', async () => {
+  if (!config.adminAuthorized) {
+    throw new Error('Yonetici modu aktif degil.');
+  }
+
+  return getAdminDashboard();
+});
+
+ipcMain.handle('admin:approve-request', async (_event, payload) => {
+  if (!config.adminAuthorized) {
+    throw new Error('Yonetici modu aktif degil.');
+  }
+
+  return approveLicenseRequest(payload || {});
+});
+
+ipcMain.handle('admin:delete-request', (_event, deviceCode) => {
+  if (!config.adminAuthorized) {
+    throw new Error('Yonetici modu aktif degil.');
+  }
+
+  return deleteLicenseRequest(deviceCode);
+});
+
+ipcMain.handle('admin:upsert-license', async (_event, payload) => {
+  if (!config.adminAuthorized) {
+    throw new Error('Yonetici modu aktif degil.');
+  }
+
+  return upsertLicense(payload || {});
+});
+
+ipcMain.handle('admin:delete-license', async (_event, deviceCode) => {
+  if (!config.adminAuthorized) {
+    throw new Error('Yonetici modu aktif degil.');
+  }
+
+  return deleteLicense(deviceCode);
+});
+
 ipcMain.handle('license:get-status', async () => {
-  licenseState = await refreshLicenseStatus(config.licenseKey);
+  licenseState = await refreshLicenseStatus(config.deviceCode);
   return licenseState;
 });
+
+ipcMain.handle('license:refresh', async () => {
+  licenseState = await refreshLicenseStatus(config.deviceCode);
+  return publicConfig();
+});
+
+ipcMain.handle('license:request', async () => submitLicenseRequest({
+  deviceCode: config.deviceCode,
+  deviceName: config.deviceName,
+  appVersion: getVersionConfig().appVersion || app.getVersion(),
+  signalServerUrl: config.signalServerUrl,
+}));
 
 ipcMain.handle('updates:check-now', async () => checkForAppUpdates({ manual: true }));
 

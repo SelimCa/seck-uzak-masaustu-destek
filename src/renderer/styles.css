@@ -109,7 +109,8 @@ h2 {
   grid-template-columns: 1.05fr 1.1fr 1.35fr;
   grid-template-areas:
     'connect host saved'
-    'transfer host saved';
+    'transfer host saved'
+    'admin admin admin';
   gap: 16px;
   align-items: start;
 }
@@ -138,6 +139,7 @@ h2 {
 .host-panel { grid-area: host; }
 .saved-panel { grid-area: saved; min-height: 650px; }
 .transfer-panel { grid-area: transfer; }
+.admin-panel { grid-area: admin; }
 
 .panel-heading,
 .saved-header {
@@ -253,6 +255,66 @@ h2 {
 
 .compact-actions {
   margin-top: -2px;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.admin-header {
+  margin-bottom: 20px;
+}
+
+.admin-view {
+  display: block;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.checkbox-field {
+  justify-content: flex-end;
+}
+
+.checkbox-field input {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+.admin-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-card {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(4, 12, 22, 0.76);
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-card-title {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.admin-card-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .session-control {
@@ -426,7 +488,8 @@ button:disabled {
     grid-template-areas:
       'connect host'
       'saved saved'
-      'transfer transfer';
+      'transfer transfer'
+      'admin admin';
   }
 }
 
@@ -434,6 +497,11 @@ button:disabled {
   .host-meta,
   .session-control {
     justify-content: flex-start;
+  }
+
+  .admin-form-grid,
+  .admin-list {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -1,5 +1,8 @@
 const express = require('express');
+const { EventEmitter } = require('node:events');
 const http = require('node:http');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { Server } = require('socket.io');
 
@@ -13,9 +16,85 @@ const io = new Server(server, {
 
 const hosts = new Map();
 const webClientPath = path.join(__dirname, '../web');
+const appDataDir = path.join(process.env.APPDATA || os.homedir(), 'Seck Uzak Masaustu Destek');
+const licenseRequestStorePath = path.join(appDataDir, 'license_requests.json');
+const serverEvents = new EventEmitter();
 let startedServer = null;
 
+app.use(express.json({ limit: '256kb' }));
 app.use('/web', express.static(webClientPath));
+
+function readLicenseRequests() {
+  try {
+    return JSON.parse(fs.readFileSync(licenseRequestStorePath, 'utf8'));
+  }
+  catch {
+    return { requests: [] };
+  }
+}
+
+function writeLicenseRequests(payload) {
+  fs.mkdirSync(path.dirname(licenseRequestStorePath), { recursive: true });
+  fs.writeFileSync(licenseRequestStorePath, JSON.stringify(payload, null, 2), 'utf8');
+}
+
+async function forwardToDiscord(requestItem) {
+  const discordWebhookUrl = String(process.env.SECK_DISCORD_WEBHOOK_URL || '').trim();
+  if (!discordWebhookUrl) {
+    return false;
+  }
+
+  const response = await fetch(discordWebhookUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      content: [
+        'Yeni lisans talebi alindi.',
+        `Bilgisayar Kodu: ${requestItem.deviceCode}`,
+        `Bilgisayar Adi: ${requestItem.deviceName || '-'}`,
+        `Surum: ${requestItem.appVersion || '-'}`,
+      ].join('\n'),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Discord webhook hatasi: HTTP ${response.status}`);
+  }
+
+  return true;
+}
+
+async function forwardToTelegram(requestItem) {
+  const botToken = String(process.env.SECK_TELEGRAM_BOT_TOKEN || '').trim();
+  const chatId = String(process.env.SECK_TELEGRAM_CHAT_ID || '').trim();
+  if (!botToken || !chatId) {
+    return false;
+  }
+
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: [
+        'Yeni lisans talebi alindi.',
+        `Bilgisayar Kodu: ${requestItem.deviceCode}`,
+        `Bilgisayar Adi: ${requestItem.deviceName || '-'}`,
+        `Surum: ${requestItem.appVersion || '-'}`,
+      ].join('\n'),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Telegram webhook hatasi: HTTP ${response.status}`);
+  }
+
+  return true;
+}
 
 app.get('/', (_request, response) => {
   response.redirect('/web');
@@ -23,6 +102,57 @@ app.get('/', (_request, response) => {
 
 app.get('/health', (_request, response) => {
   response.json({ ok: true, hosts: hosts.size });
+});
+
+app.post('/license-request', async (request, response) => {
+  const deviceCode = String(request.body?.deviceCode || '').trim();
+  const deviceName = String(request.body?.deviceName || '').trim();
+  const appVersion = String(request.body?.appVersion || '').trim();
+
+  if (!deviceCode) {
+    response.status(400).json({ ok: false, message: 'deviceCode gerekli.' });
+    return;
+  }
+
+  const requestItem = {
+    deviceCode,
+    deviceName,
+    appVersion,
+    requestedAt: request.body?.requestedAt || new Date().toISOString(),
+    sourceIp: request.headers['x-forwarded-for'] || request.socket.remoteAddress || '',
+    status: 'pending',
+  };
+
+  const current = readLicenseRequests();
+  const requests = Array.isArray(current.requests) ? current.requests : [];
+  const existingIndex = requests.findIndex((item) => item.deviceCode === deviceCode);
+
+  if (existingIndex >= 0) {
+    requests[existingIndex] = {
+      ...requests[existingIndex],
+      ...requestItem,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  else {
+    requests.unshift(requestItem);
+  }
+
+  writeLicenseRequests({ requests });
+  serverEvents.emit('license-request', requestItem);
+
+  try {
+    await forwardToDiscord(requestItem);
+    await forwardToTelegram(requestItem);
+  }
+  catch (error) {
+    console.error('License request forward failed:', error.message);
+  }
+
+  response.json({
+    ok: true,
+    message: 'Lisans talebi alindi. Onaydan sonra Lisansi Yenile ile aktif olur.',
+  });
 });
 
 io.on('connection', (socket) => {
@@ -136,7 +266,10 @@ function startSignalServer({ port } = {}) {
 }
 
 module.exports = {
+  readLicenseRequests,
+  serverEvents,
   startSignalServer,
+  writeLicenseRequests,
 };
 
 if (require.main === module) {
