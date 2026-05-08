@@ -48,6 +48,8 @@
     adminLicenseDeviceCodeInput: $('#adminLicenseDeviceCodeInput'),
     adminLicenseNameInput: $('#adminLicenseNameInput'),
     adminLicenseExpiryInput: $('#adminLicenseExpiryInput'),
+    adminLicensePresetSelect: $('#adminLicensePresetSelect'),
+    adminLicenseDaysInput: $('#adminLicenseDaysInput'),
     adminLicenseActiveInput: $('#adminLicenseActiveInput'),
     adminSaveLicenseButton: $('#adminSaveLicenseButton'),
     adminLicensesList: $('#adminLicensesList'),
@@ -309,10 +311,68 @@
     refs.adminLicensesView.classList.toggle('hidden', tab !== 'licenses');
   }
 
+  function toIsoDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function resolveExpiryFromPreset(preset) {
+    const now = new Date();
+
+    if (preset === '1m') {
+      now.setMonth(now.getMonth() + 1);
+      return toIsoDate(now);
+    }
+
+    if (preset === '3m') {
+      now.setMonth(now.getMonth() + 3);
+      return toIsoDate(now);
+    }
+
+    if (preset === '6m') {
+      now.setMonth(now.getMonth() + 6);
+      return toIsoDate(now);
+    }
+
+    if (preset === '1y') {
+      now.setFullYear(now.getFullYear() + 1);
+      return toIsoDate(now);
+    }
+
+    if (preset === 'forever') {
+      return '';
+    }
+
+    if (preset === 'days') {
+      const days = Number(refs.adminLicenseDaysInput.value);
+      if (!Number.isInteger(days) || days <= 0) {
+        throw new Error('Ozel gun sayisi pozitif bir tam sayi olmali.');
+      }
+
+      now.setDate(now.getDate() + days);
+      return toIsoDate(now);
+    }
+
+    return refs.adminLicenseExpiryInput.value.trim();
+  }
+
+  function syncExpiryPreset() {
+    const preset = refs.adminLicensePresetSelect.value;
+    if (preset === 'custom') {
+      return;
+    }
+
+    refs.adminLicenseExpiryInput.value = resolveExpiryFromPreset(preset);
+  }
+
   function populateAdminLicenseForm(item = {}) {
     refs.adminLicenseDeviceCodeInput.value = item.deviceCode || '';
     refs.adminLicenseNameInput.value = item.name || '';
     refs.adminLicenseExpiryInput.value = item.expires || '';
+    refs.adminLicensePresetSelect.value = 'custom';
+    refs.adminLicenseDaysInput.value = '';
     refs.adminLicenseActiveInput.checked = item.active !== false;
   }
 
@@ -954,16 +1014,34 @@
       await refreshAdminDashboard();
       setText(refs.hostStatus, 'Yonetim listeleri yenilendi.');
     });
+    refs.adminLicensePresetSelect.addEventListener('change', syncExpiryPreset);
+    refs.adminLicenseDaysInput.addEventListener('input', () => {
+      if (refs.adminLicensePresetSelect.value !== 'days') {
+        return;
+      }
+
+      try {
+        refs.adminLicenseExpiryInput.value = resolveExpiryFromPreset('days');
+      }
+      catch {
+        refs.adminLicenseExpiryInput.value = '';
+      }
+    });
     refs.adminSaveLicenseButton.addEventListener('click', async () => {
-      state.adminDashboard = await window.anydeksApi.upsertLicense({
-        deviceCode: refs.adminLicenseDeviceCodeInput.value,
-        name: refs.adminLicenseNameInput.value,
-        expires: refs.adminLicenseExpiryInput.value,
-        active: refs.adminLicenseActiveInput.checked,
-      });
-      renderAdminDashboard();
-      setAdminTab('licenses');
-      setText(refs.hostStatus, 'Lisans kaydi guncellendi.');
+      try {
+        state.adminDashboard = await window.anydeksApi.upsertLicense({
+          deviceCode: refs.adminLicenseDeviceCodeInput.value,
+          name: refs.adminLicenseNameInput.value,
+          expires: resolveExpiryFromPreset(refs.adminLicensePresetSelect.value),
+          active: refs.adminLicenseActiveInput.checked,
+        });
+        renderAdminDashboard();
+        setAdminTab('licenses');
+        setText(refs.hostStatus, 'Lisans kaydi guncellendi.');
+      }
+      catch (error) {
+        setText(refs.hostStatus, error.message);
+      }
     });
     refs.adminRequestsView.addEventListener('click', async (event) => {
       const button = event.target.closest('button[data-admin-action]');
@@ -982,14 +1060,18 @@
       }
 
       if (action === 'approve-request') {
-        const expires = window.prompt('Son kullanma tarihi (YYYY-AA-GG, bos olabilir):', '');
-        state.adminDashboard = await window.anydeksApi.approveLicenseRequest({
-          deviceCode,
-          name: deviceName || deviceCode,
-          expires: expires === null ? '' : expires,
-        });
-        renderAdminDashboard();
-        setText(refs.hostStatus, `${deviceCode} icin lisans onaylandi.`);
+        try {
+          state.adminDashboard = await window.anydeksApi.approveLicenseRequest({
+            deviceCode,
+            name: deviceName || deviceCode,
+            expires: resolveExpiryFromPreset(refs.adminLicensePresetSelect.value),
+          });
+          renderAdminDashboard();
+          setText(refs.hostStatus, `${deviceCode} icin lisans onaylandi.`);
+        }
+        catch (error) {
+          setText(refs.hostStatus, error.message);
+        }
         return;
       }
 

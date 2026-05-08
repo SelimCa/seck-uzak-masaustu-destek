@@ -152,6 +152,17 @@ Istersen bu endpoint gelen talepleri Discord veya Telegram'a da iletebilir:
 
 Gelen lisans talepleri sunucu tarafinda license_requests.json dosyasina kaydedilir.
 
+## Yonetici Paneli
+
+- Ana ekrandaki Yonetici anahtari alanina version.json icindeki adminAccessKey degerini gir.
+- Yonetici Modunu Ac dugmesine bastiginda bu bilgisayarda yonetim paneli kalici olarak acilir.
+- Lisans Talepleri sekmesinde gelen talepleri gorur, tek tikla onaylar veya silersin.
+- Lisanslari Yonet sekmesinde yeni lisans ekler, mevcut lisansi gunceller veya silersin.
+- Hazir sure alanindan 1 ay, 3 ay, 6 ay, 1 yil veya suresiz secerek bitis tarihini hizli doldurabilirsin.
+- Ozel Gun Sayisi secenegiyle 15, 30, 45 gibi ozel sureleri gun bazinda tanimlayabilirsin.
+- Talep onaylarken de secili hazir sure dogrudan kullanilir.
+- Uygulama yonetim listesini belirli araliklarla yeniledigi icin yaptigin onay ve silme islemleri ekrana hemen yansir.
+
 ## Arka Plan Sunucu Adresi (Yonetici Ayari)
 
 Kullanici arayuzunde sunucu alani yoktur. Sunucu adresi uygulama tarafinda otomatik gelir.

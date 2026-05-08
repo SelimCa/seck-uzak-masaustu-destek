@@ -147,11 +147,28 @@
               <span>Son kullanma</span>
               <input id="adminLicenseExpiryInput" type="text" placeholder="2027-12-31 veya bos">
             </label>
+            <label class="field">
+              <span>Hazir sure</span>
+              <select id="adminLicensePresetSelect">
+                <option value="custom">Elle belirle</option>
+                <option value="1m">1 Ay</option>
+                <option value="3m">3 Ay</option>
+                <option value="6m">6 Ay</option>
+                <option value="1y">1 Yil</option>
+                <option value="days">Ozel Gun Sayisi</option>
+                <option value="forever">Suresiz</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Ozel gun</span>
+              <input id="adminLicenseDaysInput" type="number" min="1" step="1" placeholder="Orn: 45">
+            </label>
             <label class="field checkbox-field">
               <span>Lisans aktif</span>
               <input id="adminLicenseActiveInput" type="checkbox" checked>
             </label>
           </div>
+          <p class="help">Talep onayinda secili hazir sure otomatik uygulanir. Ozel Gun Sayisi secersen gun adedini alttaki alana gir.</p>
           <div class="actions compact-actions">
             <button id="adminSaveLicenseButton" class="primary">Lisansi Kaydet</button>
           </div>
