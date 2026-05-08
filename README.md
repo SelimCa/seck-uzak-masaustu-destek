@@ -26,7 +26,11 @@ Ornek version.json:
 {
 	"appVersion": "0.1.0",
 	"githubRepo": "SelimCa/seck-uzak-masaustu-destek",
-	"licenseFile": "licenses.json"
+	"licenseFile": "licenses.json",
+	"signalServerUrl": "http://destek.firma.com:3131",
+	"turnServerUrl": "turn:destek.firma.com:3478",
+	"turnUsername": "turnkullanici",
+	"turnPassword": "turnsifre"
 }
 ```
 
@@ -166,6 +170,10 @@ Gelen lisans talepleri sunucu tarafinda license_requests.json dosyasina kaydedil
 ## Arka Plan Sunucu Adresi (Yonetici Ayari)
 
 Kullanici arayuzunde sunucu alani yoktur. Sunucu adresi uygulama tarafinda otomatik gelir.
+
+Kalici ortak sunucu kullanmak icin version.json icine signalServerUrl yaz.
+Bu alan doldurulursa tum kurulu istemciler bu ortak adresi kullanir.
+Ortam degiskenleri varsa onlar version.json degerlerinin ustune yazar.
 
 Varsayilan:
 

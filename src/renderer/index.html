@@ -13,11 +13,12 @@
       <div>
         <p class="eyebrow">Windows Uzak Masaustu</p>
         <h1>Seck Uzak Masaustu Destek</h1>
-        <p class="hero-copy">Hizli baglan, bilgisayarlari kaydet, favorilere ekle ve uzagi kendi bilgisayarin gibi yonet.</p>
+        <p class="hero-copy">Hizli baglan, kaydet ve tek ekranda bilgisayarlarini yonet.</p>
       </div>
       <div class="hero-status">
         <span id="socketBadge" class="badge offline">Sunucuya bagli degil</span>
         <span id="sessionBadge" class="badge muted">Oturum yok</span>
+        <button id="openAdminPanelButton" class="chip hidden">Yonetim</button>
       </div>
     </header>
 
@@ -71,29 +72,28 @@
           <span>Lisans modeli</span>
           <input type="text" value="Bilgisayar koduna gore otomatik lisans" readonly>
         </label>
-        <label class="field">
-          <span>Yonetici anahtari</span>
-          <input id="adminAccessKeyInput" type="password" placeholder="Yonetici panelini acmak icin anahtari gir">
-        </label>
         <div class="actions">
           <button id="savePasswordButton" class="primary">Sabit Sifreyi Kaydet</button>
           <button id="clearPasswordButton">Sabit Sifreyi Temizle</button>
           <button id="shareScreenButton">Ekran Paylasimini Hazirla</button>
         </div>
         <div class="actions compact-actions">
-          <button id="activateAdminButton">Yonetici Modunu Ac</button>
           <button id="refreshLicenseButton">Lisansi Yenile</button>
           <button id="requestLicenseButton">Lisans Talep Et</button>
           <button id="checkUpdatesButton">Guncellemeyi Kontrol Et</button>
         </div>
         <p id="licenseStatus" class="help">Lisans kontrol ediliyor...</p>
-        <p id="adminModeStatus" class="help">Yonetici modu kapali.</p>
         <p id="hostStatus" class="help">Baglanti geldiginde paylasmak istedigin ekran secilecek veya onceki secim kullanilacak.</p>
-        <div class="session-control">
-          <p id="connectedViewer" class="help">Bagli istemci yok.</p>
-          <button id="endSessionButton" class="danger-btn" disabled>Oturumu Sonlandir</button>
+        <div class="mini-transfer">
+          <label class="field file-picker compact-field">
+            <span>Dosya gonder</span>
+            <input id="fileInput" type="file">
+          </label>
+          <button id="sendFileButton">Dosyayi Gonder</button>
         </div>
-        <video id="localPreview" autoplay playsinline muted></video>
+        <p id="transferStatus" class="help">Gelen dosyalar Indirilenler/Seck Uzak Masaustu Gelenler klasorune kaydedilir.</p>
+        <p id="connectedViewer" class="help">Bagli istemci yok.</p>
+        <video id="localPreview" class="hidden" autoplay playsinline muted></video>
       </section>
 
       <section class="panel saved-panel">
@@ -109,74 +109,81 @@
         <p id="savedHint" class="help">Hedef kodu girip Kaydet dediginde bilgisayar listene eklenir.</p>
       </section>
 
-      <section class="panel transfer-panel">
-        <h2>Dosya Transferi</h2>
-        <label class="field file-picker">
-          <span>Gonderilecek dosya</span>
-          <input id="fileInput" type="file">
-        </label>
-        <div class="actions">
-          <button id="sendFileButton" class="primary">Dosyayi Gonder</button>
-        </div>
-        <p id="transferStatus" class="help">Gelen dosyalar otomatik olarak Indirilenler/Seck Uzak Masaustu Gelenler klasorune kaydedilir.</p>
-      </section>
-
-      <section id="adminPanel" class="panel admin-panel hidden">
-        <div class="saved-header admin-header">
-          <h2>Yonetim</h2>
-          <div class="saved-tabs">
-            <button id="adminTabRequestsButton" class="chip active">Lisans Talepleri</button>
-            <button id="adminTabLicensesButton" class="chip">Lisanslari Yonet</button>
-            <button id="adminRefreshButton" class="chip">Yenile</button>
+      <section id="adminPanel" class="admin-panel hidden">
+        <div class="admin-dialog panel">
+          <div class="saved-header admin-header">
+            <h2>Yonetim</h2>
+            <div class="saved-tabs">
+              <button id="adminTabRequestsButton" class="chip active">Lisans Talepleri</button>
+              <button id="adminTabLicensesButton" class="chip">Lisanslari Yonet</button>
+              <button id="adminRefreshButton" class="chip">Yenile</button>
+              <button id="closeAdminPanelButton" class="chip">Kapat</button>
+            </div>
           </div>
-        </div>
+          <p id="adminStatus" class="help">Bekleyen lisans talepleri burada gorunur.</p>
 
-        <div id="adminRequestsView" class="admin-view"></div>
+          <div id="adminRequestsView" class="admin-view"></div>
 
-        <div id="adminLicensesView" class="admin-view hidden">
-          <div class="admin-form-grid">
-            <label class="field">
-              <span>Bilgisayar kodu</span>
-              <input id="adminLicenseDeviceCodeInput" type="text" placeholder="123-456-789">
-            </label>
-            <label class="field">
-              <span>Unvan / isim</span>
-              <input id="adminLicenseNameInput" type="text" placeholder="Musteri adi">
-            </label>
-            <label class="field">
-              <span>Son kullanma</span>
-              <input id="adminLicenseExpiryInput" type="text" placeholder="2027-12-31 veya bos">
-            </label>
-            <label class="field">
-              <span>Hazir sure</span>
-              <select id="adminLicensePresetSelect">
-                <option value="custom">Elle belirle</option>
-                <option value="1m">1 Ay</option>
-                <option value="3m">3 Ay</option>
-                <option value="6m">6 Ay</option>
-                <option value="1y">1 Yil</option>
-                <option value="days">Ozel Gun Sayisi</option>
-                <option value="forever">Suresiz</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Ozel gun</span>
-              <input id="adminLicenseDaysInput" type="number" min="1" step="1" placeholder="Orn: 45">
-            </label>
-            <label class="field checkbox-field">
-              <span>Lisans aktif</span>
-              <input id="adminLicenseActiveInput" type="checkbox" checked>
-            </label>
+          <div id="adminLicensesView" class="admin-view hidden">
+            <div class="admin-form-grid">
+              <label class="field">
+                <span>Bilgisayar kodu</span>
+                <input id="adminLicenseDeviceCodeInput" type="text" placeholder="123-456-789">
+              </label>
+              <label class="field">
+                <span>Unvan / isim</span>
+                <input id="adminLicenseNameInput" type="text" placeholder="Musteri adi">
+              </label>
+              <label class="field">
+                <span>Son kullanma</span>
+                <input id="adminLicenseExpiryInput" type="text" placeholder="2027-12-31 veya bos">
+              </label>
+              <label class="field">
+                <span>Hazir sure</span>
+                <select id="adminLicensePresetSelect">
+                  <option value="custom">Elle belirle</option>
+                  <option value="1m">1 Ay</option>
+                  <option value="3m">3 Ay</option>
+                  <option value="6m">6 Ay</option>
+                  <option value="1y">1 Yil</option>
+                  <option value="days">Ozel Gun Sayisi</option>
+                  <option value="forever">Suresiz</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Ozel gun</span>
+                <input id="adminLicenseDaysInput" type="number" min="1" step="1" placeholder="Orn: 45">
+              </label>
+              <label class="field checkbox-field">
+                <span>Lisans aktif</span>
+                <input id="adminLicenseActiveInput" type="checkbox" checked>
+              </label>
+            </div>
+            <p class="help">Talep onayinda secili hazir sure otomatik uygulanir. Ozel Gun Sayisi secersen gun adedini gir.</p>
+            <div class="actions compact-actions">
+              <button id="adminSaveLicenseButton" class="primary">Lisansi Kaydet</button>
+            </div>
+            <div id="adminLicensesList" class="admin-list"></div>
           </div>
-          <p class="help">Talep onayinda secili hazir sure otomatik uygulanir. Ozel Gun Sayisi secersen gun adedini alttaki alana gir.</p>
-          <div class="actions compact-actions">
-            <button id="adminSaveLicenseButton" class="primary">Lisansi Kaydet</button>
-          </div>
-          <div id="adminLicensesList" class="admin-list"></div>
         </div>
       </section>
     </main>
   </div>
+
+  <section id="adminUnlockModal" class="admin-unlock hidden">
+    <div class="admin-unlock-card panel">
+      <h2>Yonetici Girisi</h2>
+      <p class="help">Bu alan gizlidir. Sadece yonetici sifresini biliyorsan devam et.</p>
+      <label class="field">
+        <span>Sifre</span>
+        <input id="adminUnlockInput" type="password" placeholder="Yonetici sifresi">
+      </label>
+      <div class="actions compact-actions">
+        <button id="adminUnlockSubmitButton" class="primary">Ac</button>
+        <button id="adminUnlockCloseButton">Kapat</button>
+      </div>
+    </div>
+  </section>
 
   <script src="../../node_modules/socket.io-client/dist/socket.io.min.js"></script>
   <script src="./app.js"></script>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gelen Oturum</title>
+  <link rel="stylesheet" href="./incoming-session.css">
+</head>
+<body>
+  <div class="session-shell">
+    <header class="session-header">
+      <div>
+        <p class="eyebrow">Gelen Baglanti</p>
+        <h1 id="viewerName">Baglanti bekleniyor</h1>
+        <p id="sessionMeta" class="muted">Henuz aktif oturum yok.</p>
+      </div>
+      <span id="sessionState" class="badge muted">Pasif</span>
+    </header>
+
+    <section class="session-card">
+      <div class="stat-grid">
+        <div class="stat-card">
+          <span class="muted">Bilgisayar Kodu</span>
+          <strong id="deviceCode">-</strong>
+        </div>
+        <div class="stat-card accent">
+          <span class="muted">Baglanti Suresi</span>
+          <strong id="sessionDuration">00:00</strong>
+        </div>
+      </div>
+
+      <p id="statusText" class="muted">Gelen baglanti oldugunda burada gorunur.</p>
+
+      <div class="actions">
+        <button id="focusMainButton">Ana Pencereyi Ac</button>
+        <button id="endSessionButton" class="danger">Oturumu Sonlandir</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="./incoming-session.js"></script>
+</body>
+</html>

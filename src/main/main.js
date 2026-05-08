@@ -28,11 +28,12 @@ const { getVersionConfig } = require('./runtime-config');
 const { checkForAppUpdates, initUpdater } = require('./updater');
 const { serverEvents, startSignalServer } = require('../server/server');
 
+const versionConfig = getVersionConfig();
 const AUTO_NETWORK = {
-  signalServerUrl: process.env.SECK_SIGNAL_SERVER_URL || 'http://127.0.0.1:3131',
-  turnServerUrl: process.env.SECK_TURN_SERVER_URL || '',
-  turnUsername: process.env.SECK_TURN_USERNAME || '',
-  turnPassword: process.env.SECK_TURN_PASSWORD || '',
+  signalServerUrl: process.env.SECK_SIGNAL_SERVER_URL || String(versionConfig.signalServerUrl || '').trim() || 'http://127.0.0.1:3131',
+  turnServerUrl: process.env.SECK_TURN_SERVER_URL || String(versionConfig.turnServerUrl || '').trim() || '',
+  turnUsername: process.env.SECK_TURN_USERNAME || String(versionConfig.turnUsername || '').trim() || '',
+  turnPassword: process.env.SECK_TURN_PASSWORD || String(versionConfig.turnPassword || '').trim() || '',
 };
 
 const inputController = new InputController();
@@ -53,10 +54,30 @@ const startInBackground = process.argv.includes('--background');
 const APP_ICON_PATH = path.join(__dirname, '../assets/icons/app-icon.ico');
 const TRAY_ICON_PATH = path.join(__dirname, '../assets/icons/tray-icon.png');
 const SIGNAL_SERVER_PORT = Number(process.env.ANYDEKS_SIGNAL_PORT || 3131);
-const DEPRECATED_REMOTE_SIGNAL_URL = 'http://85.105.250.108:3131';
 let embeddedSignalServer = null;
 
+function revealMainWindow({ openAdminPanel = false } = {}) {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+
+  mainWindow.show();
+  mainWindow.focus();
+
+  if (openAdminPanel) {
+    mainWindow.webContents.send('admin:open-panel');
+  }
+}
+
 function showLicenseRequestNotification(requestItem) {
+  if (!config?.adminAuthorized) {
+    return;
+  }
+
   const now = Date.now();
   if (now - lastLicenseNotificationAt < 2500) {
     return;
@@ -78,10 +99,7 @@ function showLicenseRequestNotification(requestItem) {
     });
 
     notification.on('click', () => {
-      if (mainWindow) {
-        mainWindow.show();
-        mainWindow.focus();
-      }
+      revealMainWindow({ openAdminPanel: true });
     });
 
     notification.show();
@@ -96,9 +114,13 @@ function showLicenseRequestNotification(requestItem) {
     });
   }
 
+  if (tray) {
+    tray.removeAllListeners('balloon-click');
+    tray.once('balloon-click', () => revealMainWindow({ openAdminPanel: true }));
+  }
+
   if (mainWindow && !mainWindow.isVisible()) {
-    mainWindow.show();
-    mainWindow.focus();
+    revealMainWindow();
   }
 }
 
@@ -148,8 +170,20 @@ function resolveSignalServerUrl(rawUrl) {
     return AUTO_NETWORK.signalServerUrl;
   }
 
-  // Migrate legacy hardcoded remote endpoint to local embedded server.
-  if (candidate === DEPRECATED_REMOTE_SIGNAL_URL) {
+  try {
+    const parsedCandidate = new URL(candidate);
+    const parsedAutoNetwork = new URL(AUTO_NETWORK.signalServerUrl);
+    const isLocalCandidate = ['127.0.0.1', 'localhost', '::1'].includes(parsedCandidate.hostname);
+    const isRemoteAutoNetwork = !['127.0.0.1', 'localhost', '::1'].includes(parsedAutoNetwork.hostname);
+
+    if (isLocalCandidate && isRemoteAutoNetwork) {
+      return AUTO_NETWORK.signalServerUrl;
+    }
+  }
+  catch {
+  }
+
+  if (candidate.replace(/\/$/, '') === AUTO_NETWORK.signalServerUrl.replace(/\/$/, '')) {
     return AUTO_NETWORK.signalServerUrl;
   }
 
@@ -531,7 +565,9 @@ ipcMain.handle('admin:get-dashboard', async () => {
     throw new Error('Yonetici modu aktif degil.');
   }
 
-  return getAdminDashboard();
+  return getAdminDashboard({
+    signalServerUrl: config.signalServerUrl,
+  });
 });
 
 ipcMain.handle('admin:approve-request', async (_event, payload) => {
@@ -539,7 +575,10 @@ ipcMain.handle('admin:approve-request', async (_event, payload) => {
     throw new Error('Yonetici modu aktif degil.');
   }
 
-  return approveLicenseRequest(payload || {});
+  return approveLicenseRequest({
+    ...(payload || {}),
+    signalServerUrl: config.signalServerUrl,
+  });
 });
 
 ipcMain.handle('admin:delete-request', (_event, deviceCode) => {
@@ -547,7 +586,7 @@ ipcMain.handle('admin:delete-request', (_event, deviceCode) => {
     throw new Error('Yonetici modu aktif degil.');
   }
 
-  return deleteLicenseRequest(deviceCode);
+  return deleteLicenseRequest(deviceCode, config.signalServerUrl);
 });
 
 ipcMain.handle('admin:upsert-license', async (_event, payload) => {
@@ -581,6 +620,7 @@ ipcMain.handle('license:request', async () => submitLicenseRequest({
   deviceName: config.deviceName,
   appVersion: getVersionConfig().appVersion || app.getVersion(),
   signalServerUrl: config.signalServerUrl,
+  allowLocalSubmission: Boolean(config.adminAuthorized),
 }));
 
 ipcMain.handle('updates:check-now', async () => checkForAppUpdates({ manual: true }));
@@ -632,8 +672,7 @@ ipcMain.handle('desktop:set-source', (_event, sourceId) => {
 });
 
 ipcMain.handle('input:perform', (_event, payload) => {
-  inputController.send(payload);
-  return true;
+  return inputController.send(payload);
 });
 
 ipcMain.handle('files:save', (_event, { fileName, bytes }) => {

@@ -38,6 +38,27 @@ function resolveWebhookUrl(webhookUrl, signalServerUrl) {
   return new URL(pathName, baseUrl).toString();
 }
 
+function isLocalWebhookTarget(webhookUrl, signalServerUrl) {
+  const rawWebhookUrl = String(webhookUrl || '').trim();
+  const rawSignalServerUrl = String(signalServerUrl || '').trim();
+
+  if (/^https?:\/\//i.test(rawWebhookUrl)) {
+    return false;
+  }
+
+  if (!rawSignalServerUrl) {
+    return false;
+  }
+
+  try {
+    const parsedUrl = new URL(rawSignalServerUrl);
+    return ['127.0.0.1', 'localhost', '::1'].includes(parsedUrl.hostname);
+  }
+  catch {
+    return false;
+  }
+}
+
 function readCache() {
   try {
     return JSON.parse(fs.readFileSync(getCachePath(), 'utf8'));
@@ -248,8 +269,16 @@ async function refreshLicenseStatus(deviceCode) {
   };
 }
 
-async function submitLicenseRequest({ deviceCode, deviceName, appVersion, signalServerUrl }) {
+async function submitLicenseRequest({ deviceCode, deviceName, appVersion, signalServerUrl, allowLocalSubmission = false }) {
   const { licenseRequestWebhookUrl } = getVersionConfig();
+
+  if (!allowLocalSubmission && isLocalWebhookTarget(licenseRequestWebhookUrl, signalServerUrl)) {
+    return {
+      ok: false,
+      message: 'Lisans talebi yerel bilgisayara gidiyor. Bildirimin yoneticiye dusmesi icin ortak sinyal sunucusu adresi kullanilmali.',
+    };
+  }
+
   const webhookUrl = resolveWebhookUrl(licenseRequestWebhookUrl, signalServerUrl);
 
   if (!webhookUrl) {

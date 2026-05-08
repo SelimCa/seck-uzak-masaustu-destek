@@ -38,6 +38,16 @@ function writeLicenseRequests(payload) {
   fs.writeFileSync(licenseRequestStorePath, JSON.stringify(payload, null, 2), 'utf8');
 }
 
+function verifyAdminKey(value) {
+  try {
+    const { getVersionConfig } = require('../main/runtime-config');
+    return String(value || '').trim() === String(getVersionConfig().adminAccessKey || '').trim();
+  }
+  catch {
+    return false;
+  }
+}
+
 async function forwardToDiscord(requestItem) {
   const discordWebhookUrl = String(process.env.SECK_DISCORD_WEBHOOK_URL || '').trim();
   if (!discordWebhookUrl) {
@@ -102,6 +112,32 @@ app.get('/', (_request, response) => {
 
 app.get('/health', (_request, response) => {
   response.json({ ok: true, hosts: hosts.size });
+});
+
+app.get('/license-requests', (request, response) => {
+  const adminKey = request.headers['x-admin-key'] || request.query.adminKey;
+  if (!verifyAdminKey(adminKey)) {
+    response.status(403).json({ ok: false, message: 'Yonetici yetkisi gerekli.' });
+    return;
+  }
+
+  const current = readLicenseRequests();
+  response.json({
+    ok: true,
+    requests: Array.isArray(current.requests) ? current.requests : [],
+  });
+});
+
+app.put('/license-requests', (request, response) => {
+  const adminKey = request.headers['x-admin-key'] || request.body?.adminKey;
+  if (!verifyAdminKey(adminKey)) {
+    response.status(403).json({ ok: false, message: 'Yonetici yetkisi gerekli.' });
+    return;
+  }
+
+  const requests = Array.isArray(request.body?.requests) ? request.body.requests : [];
+  writeLicenseRequests({ requests });
+  response.json({ ok: true, requests });
 });
 
 app.post('/license-request', async (request, response) => {

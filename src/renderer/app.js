@@ -11,19 +11,15 @@
     rollingPassword: $('#rollingPassword'),
     rollingCountdown: $('#rollingCountdown'),
     fixedPasswordInput: $('#fixedPasswordInput'),
-    adminAccessKeyInput: $('#adminAccessKeyInput'),
     savePasswordButton: $('#savePasswordButton'),
-    activateAdminButton: $('#activateAdminButton'),
     refreshLicenseButton: $('#refreshLicenseButton'),
     requestLicenseButton: $('#requestLicenseButton'),
     checkUpdatesButton: $('#checkUpdatesButton'),
     clearPasswordButton: $('#clearPasswordButton'),
     shareScreenButton: $('#shareScreenButton'),
     licenseStatus: $('#licenseStatus'),
-    adminModeStatus: $('#adminModeStatus'),
     hostStatus: $('#hostStatus'),
     connectedViewer: $('#connectedViewer'),
-    endSessionButton: $('#endSessionButton'),
     localPreview: $('#localPreview'),
     targetCodeInput: $('#targetCodeInput'),
     targetPasswordInput: $('#targetPasswordInput'),
@@ -39,10 +35,17 @@
     fileInput: $('#fileInput'),
     sendFileButton: $('#sendFileButton'),
     transferStatus: $('#transferStatus'),
+    openAdminPanelButton: $('#openAdminPanelButton'),
     adminPanel: $('#adminPanel'),
+    closeAdminPanelButton: $('#closeAdminPanelButton'),
+    adminUnlockModal: $('#adminUnlockModal'),
+    adminUnlockInput: $('#adminUnlockInput'),
+    adminUnlockSubmitButton: $('#adminUnlockSubmitButton'),
+    adminUnlockCloseButton: $('#adminUnlockCloseButton'),
     adminTabRequestsButton: $('#adminTabRequestsButton'),
     adminTabLicensesButton: $('#adminTabLicensesButton'),
     adminRefreshButton: $('#adminRefreshButton'),
+    adminStatus: $('#adminStatus'),
     adminRequestsView: $('#adminRequestsView'),
     adminLicensesView: $('#adminLicensesView'),
     adminLicenseDeviceCodeInput: $('#adminLicenseDeviceCodeInput'),
@@ -56,6 +59,7 @@
   };
 
   const DEVICE_BOOK_KEY = 'seck-device-book-v1';
+  const SESSION_CHANNEL_NAME = 'seck-host-session';
 
   const state = {
     config: null,
@@ -71,6 +75,9 @@
     activeViewerName: '',
     adminTab: 'requests',
     adminDashboard: { requests: [], licenses: [], source: '' },
+    sessionStartedAt: null,
+    incomingSessionWindow: null,
+    sessionChannel: typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(SESSION_CHANNEL_NAME) : null,
   };
 
   function setBadge(element, text, type) {
@@ -102,9 +109,75 @@
     const viewerLabel = state.activeViewerName || 'Bilinmeyen istemci';
     setText(refs.connectedViewer, hasActiveSession ? `Bagli istemci: ${viewerLabel}` : 'Bagli istemci yok.');
 
+    publishHostSessionState();
+  }
+
+  function publishHostSessionState() {
+    if (!state.sessionChannel) {
+      return;
+    }
+
+    state.sessionChannel.postMessage({
+      type: 'state',
+      active: Boolean(state.activePeerSocketId),
+      viewerName: state.activeViewerName || 'Baglanti bekleniyor',
+      deviceCode: state.config?.deviceCode || '',
+      startedAt: state.sessionStartedAt,
+      statusText: refs.hostStatus?.textContent || 'Gelen baglanti oldugunda burada gorunur.',
+      meta: state.activePeerSocketId
+        ? `${state.activeViewerName || 'Bir istemci'} bagli. Gorev cubugundan yonetebilirsin.`
+        : 'Henuz aktif oturum yok.',
+    });
+  }
+
+  function openIncomingSessionWindow() {
+    if (state.incomingSessionWindow && !state.incomingSessionWindow.closed) {
+      state.incomingSessionWindow.focus();
+      publishHostSessionState();
+      return;
+    }
+
+    state.incomingSessionWindow = window.open(
+      './incoming-session.html',
+      'seck-incoming-session',
+      'width=520,height=620,menubar=no,toolbar=no,location=no,status=no'
+    );
+
+    setTimeout(() => {
+      publishHostSessionState();
+    }, 150);
+  }
+
+  function openAdminUnlockModal() {
+    refs.adminUnlockModal.classList.remove('hidden');
+    refs.adminUnlockInput.value = '';
+    refs.adminUnlockInput.focus();
+  }
+
+  function closeAdminUnlockModal() {
+    refs.adminUnlockModal.classList.add('hidden');
+    refs.adminUnlockInput.value = '';
+  }
+
+  function openAdminPanel() {
+    if (!state.config?.adminAuthorized) {
+      return;
+    }
+
+    refs.adminPanel.classList.remove('hidden');
+    setText(refs.adminStatus, 'Yonetim paneli acildi.');
+  }
+
+  function closeAdminPanel() {
+    refs.adminPanel.classList.add('hidden');
+
     if (refs.endSessionButton) {
       refs.endSessionButton.disabled = !hasActiveSession;
     }
+  }
+
+  function setAdminStatus(message) {
+    setText(refs.adminStatus, message || 'Yonetim hazir.');
   }
 
   function normalizeCode(input) {
@@ -279,8 +352,10 @@
       setBadge(refs.socketBadge, 'Lisans gerekli', 'danger');
     }
 
-    setText(refs.adminModeStatus, state.config.adminAuthorized ? 'Yonetici modu aktif.' : 'Yonetici modu kapali.');
-    refs.adminPanel.classList.toggle('hidden', !state.config.adminAuthorized);
+    refs.openAdminPanelButton.classList.toggle('hidden', !state.config.adminAuthorized);
+    if (!state.config.adminAuthorized) {
+      closeAdminPanel();
+    }
   }
 
   async function refreshConfig() {
@@ -309,6 +384,20 @@
     refs.adminTabLicensesButton.classList.toggle('active', tab === 'licenses');
     refs.adminRequestsView.classList.toggle('hidden', tab !== 'requests');
     refs.adminLicensesView.classList.toggle('hidden', tab !== 'licenses');
+  }
+
+  async function handleAdminUnlock() {
+    const result = await window.anydeksApi.authorizeAdmin(refs.adminUnlockInput.value);
+    setText(refs.hostStatus, result.message || 'Yonetici modu sonucu alinamadi.');
+    if (!result.ok) {
+      return;
+    }
+
+    closeAdminUnlockModal();
+    await refreshConfig();
+    await refreshAdminDashboard();
+    setAdminTab('requests');
+    openAdminPanel();
   }
 
   function toIsoDate(date) {
@@ -377,7 +466,7 @@
   }
 
   function renderAdminRequests() {
-    const requests = state.adminDashboard.requests || [];
+    const requests = (state.adminDashboard.requests || []).filter((item) => item.status !== 'approved');
     if (!requests.length) {
       refs.adminRequestsView.innerHTML = '<p class="help">Bekleyen lisans talebi yok.</p>';
       return;
@@ -472,8 +561,11 @@
         state.hostDisplayInfo = await window.anydeksApi.getDisplayInfo();
         state.activePeerSocketId = viewerSocketId;
         state.activeViewerName = viewerName || 'Bir istemci';
+        state.sessionStartedAt = Date.now();
         updateActiveViewerUi();
+        openIncomingSessionWindow();
         setText(refs.hostStatus, `${viewerName || 'Bir istemci'} baglandi. Oturum aciliyor...`);
+        publishHostSessionState();
         socket.emit('session:response', {
           viewerSocketId,
           accepted: true,
@@ -587,24 +679,40 @@
     state.selectedSourceId = sourceId;
     await window.anydeksApi.setDesktopSource(sourceId);
 
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      audio: false,
-      video: {
-        frameRate: { ideal: 24, max: 24 },
-        width: { min: 1280, ideal: 1920, max: 3840 },
-        height: { min: 720, ideal: 1080, max: 2160 },
-      },
-    });
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        audio: false,
+        video: {
+          frameRate: { ideal: 24, max: 24 },
+          width: { ideal: 1920, max: 3840 },
+          height: { ideal: 1080, max: 2160 },
+        },
+      });
+    }
+    catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      if (!message.includes('constraint') && !message.includes('supported')) {
+        throw error;
+      }
+
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        audio: false,
+        video: true,
+      });
+    }
 
     const [videoTrack] = stream.getVideoTracks();
     videoTrack.addEventListener('ended', () => {
       state.localStream = null;
       refs.localPreview.srcObject = null;
+      refs.localPreview.classList.add('hidden');
       setText(refs.hostStatus, 'Paylasilan ekran kapandi. Yeni oturum icin tekrar secim yapmalisin.');
     });
 
     state.localStream = stream;
     refs.localPreview.srcObject = stream;
+    refs.localPreview.classList.remove('hidden');
     setText(refs.hostStatus, 'Ekran paylasimi hazir.');
     return stream;
   }
@@ -622,8 +730,10 @@
 
     state.activePeerSocketId = null;
     state.activeViewerName = '';
+    state.sessionStartedAt = null;
     updateActiveViewerUi();
     setBadge(refs.sessionBadge, 'Oturum yok', 'muted');
+    publishHostSessionState();
   }
 
   function endActiveSession(reason = 'Host oturumu sonlandirdi.') {
@@ -638,6 +748,7 @@
     resetHostSession();
     setText(refs.hostStatus, 'Oturumu sonlandirdin.');
     setText(refs.transferStatus, 'Oturum kapandi.');
+    publishHostSessionState();
   }
 
   async function createHostPeer() {
@@ -669,6 +780,8 @@
       if (currentState === 'connected') {
         setBadge(refs.sessionBadge, 'Oturum aktif', 'online');
         updateActiveViewerUi();
+        openIncomingSessionWindow();
+        publishHostSessionState();
       }
 
       if (['failed', 'disconnected', 'closed'].includes(currentState)) {
@@ -904,14 +1017,17 @@
       setText(refs.hostStatus, 'Sabit sifre temizlendi.');
     });
 
-    refs.activateAdminButton.addEventListener('click', async () => {
-      const result = await window.anydeksApi.authorizeAdmin(refs.adminAccessKeyInput.value);
-      setText(refs.hostStatus, result.message || 'Yonetici modu sonucu alinamadi.');
-      if (result.ok) {
-        refs.adminAccessKeyInput.value = '';
-        await refreshConfig();
-        await refreshAdminDashboard();
-        setAdminTab('requests');
+    refs.openAdminPanelButton.addEventListener('click', () => openAdminPanel());
+    refs.closeAdminPanelButton.addEventListener('click', () => closeAdminPanel());
+    refs.appVersion.addEventListener('dblclick', () => openAdminUnlockModal());
+    refs.adminUnlockCloseButton.addEventListener('click', () => closeAdminUnlockModal());
+    refs.adminUnlockSubmitButton.addEventListener('click', async () => handleAdminUnlock());
+    refs.adminUnlockInput.addEventListener('keydown', async (event) => {
+      if (event.key === 'Enter') {
+        await handleAdminUnlock();
+      }
+      if (event.key === 'Escape') {
+        closeAdminUnlockModal();
       }
     });
 
@@ -963,14 +1079,6 @@
       }
     });
 
-    refs.endSessionButton.addEventListener('click', () => {
-      if (!state.activePeerSocketId) {
-        return;
-      }
-
-      endActiveSession('Host oturumu sonlandirdi.');
-    });
-
     refs.saveContactButton.addEventListener('click', () => {
       const code = formatCode(refs.targetCodeInput.value);
       if (normalizeCode(code).length !== 9) {
@@ -1012,7 +1120,7 @@
     refs.adminTabLicensesButton.addEventListener('click', () => setAdminTab('licenses'));
     refs.adminRefreshButton.addEventListener('click', async () => {
       await refreshAdminDashboard();
-      setText(refs.hostStatus, 'Yonetim listeleri yenilendi.');
+      setAdminStatus('Yonetim listeleri yenilendi.');
     });
     refs.adminLicensePresetSelect.addEventListener('change', syncExpiryPreset);
     refs.adminLicenseDaysInput.addEventListener('input', () => {
@@ -1035,12 +1143,13 @@
           expires: resolveExpiryFromPreset(refs.adminLicensePresetSelect.value),
           active: refs.adminLicenseActiveInput.checked,
         });
+        await refreshConfig();
         renderAdminDashboard();
         setAdminTab('licenses');
-        setText(refs.hostStatus, 'Lisans kaydi guncellendi.');
+        setAdminStatus('Lisans kaydi guncellendi. Ana ekrandaki lisans durumu yenilendi.');
       }
       catch (error) {
-        setText(refs.hostStatus, error.message);
+        setAdminStatus(error.message);
       }
     });
     refs.adminRequestsView.addEventListener('click', async (event) => {
@@ -1056,6 +1165,7 @@
       if (action === 'fill-request') {
         populateAdminLicenseForm({ deviceCode, name: deviceName, active: true, expires: '' });
         setAdminTab('licenses');
+        setAdminStatus(`${deviceCode} lisans formuna alindi.`);
         return;
       }
 
@@ -1066,11 +1176,12 @@
             name: deviceName || deviceCode,
             expires: resolveExpiryFromPreset(refs.adminLicensePresetSelect.value),
           });
+          await refreshConfig();
           renderAdminDashboard();
-          setText(refs.hostStatus, `${deviceCode} icin lisans onaylandi.`);
+          setAdminStatus(`${deviceCode} icin lisans onaylandi.`);
         }
         catch (error) {
-          setText(refs.hostStatus, error.message);
+          setAdminStatus(error.message);
         }
         return;
       }
@@ -1083,7 +1194,7 @@
         const requests = await window.anydeksApi.deleteLicenseRequest(deviceCode);
         state.adminDashboard.requests = requests;
         renderAdminRequests();
-        setText(refs.hostStatus, `${deviceCode} talebi silindi.`);
+        setAdminStatus(`${deviceCode} talebi silindi.`);
       }
     });
     refs.adminLicensesList.addEventListener('click', async (event) => {
@@ -1110,12 +1221,39 @@
         }
 
         state.adminDashboard = await window.anydeksApi.deleteLicense(deviceCode);
+        await refreshConfig();
         renderAdminDashboard();
-        setText(refs.hostStatus, `${deviceCode} lisansi silindi.`);
+        setAdminStatus(`${deviceCode} lisansi silindi.`);
       }
     });
 
+    window.anydeksApi.onOpenAdminPanel(() => {
+      openAdminPanel();
+      setAdminTab('requests');
+      refreshAdminDashboard().catch(() => {});
+      setAdminStatus('Yeni lisans talebi bildirimi acildi.');
+    });
+
     installSavedListActions();
+
+    if (state.sessionChannel) {
+      state.sessionChannel.addEventListener('message', (event) => {
+        const payload = event.data || {};
+        if (payload.type === 'request-state') {
+          publishHostSessionState();
+          return;
+        }
+
+        if (payload.type === 'focus-main') {
+          window.focus();
+          return;
+        }
+
+        if (payload.type === 'end-session' && state.activePeerSocketId) {
+          endActiveSession('Oturum yonetici tarafindan sonlandirildi.');
+        }
+      });
+    }
   }
 
   function listenRemoteUpdates() {
@@ -1168,6 +1306,9 @@
     }
     if (state.socket) {
       state.socket.disconnect();
+    }
+    if (state.sessionChannel) {
+      state.sessionChannel.close();
     }
   });
 

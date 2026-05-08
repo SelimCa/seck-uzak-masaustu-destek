@@ -4,16 +4,19 @@ const path = require('node:path');
 class InputController {
   constructor() {
     this.process = null;
+    this.isBroken = false;
   }
 
   ensureRunning() {
-    if (this.process && !this.process.killed) {
+    if (this.process && !this.process.killed && !this.isBroken) {
       return;
     }
 
     const scriptPath = path.join(__dirname, 'windows-input.ps1');
+    this.isBroken = false;
     this.process = spawn('powershell.exe', [
       '-NoProfile',
+      '-Sta',
       '-ExecutionPolicy',
       'Bypass',
       '-File',
@@ -23,7 +26,17 @@ class InputController {
       windowsHide: true,
     });
 
+    this.process.stdin.on('error', () => {
+      this.isBroken = true;
+    });
+
+    this.process.on('error', () => {
+      this.isBroken = true;
+      this.process = null;
+    });
+
     this.process.on('exit', () => {
+      this.isBroken = true;
       this.process = null;
     });
   }
@@ -32,16 +45,27 @@ class InputController {
     this.ensureRunning();
 
     if (!this.process?.stdin?.writable) {
-      return;
+      return false;
     }
 
-    this.process.stdin.write(`${JSON.stringify(payload)}\n`);
+    try {
+      this.process.stdin.write(`${JSON.stringify(payload)}\n`);
+      return true;
+    }
+    catch {
+      this.isBroken = true;
+      this.process = null;
+      return false;
+    }
   }
 
   stop() {
     if (this.process && !this.process.killed) {
       this.process.kill();
     }
+
+    this.process = null;
+    this.isBroken = false;
   }
 }
 

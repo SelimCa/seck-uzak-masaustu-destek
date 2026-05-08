@@ -22,4 +22,5 @@ contextBridge.exposeInMainWorld('anydeksApi', {
   setDesktopSource: (value) => ipcRenderer.invoke('desktop:set-source', value),
   performInput: (payload) => ipcRenderer.invoke('input:perform', payload),
   saveIncomingFile: (payload) => ipcRenderer.invoke('files:save', payload),
+  onOpenAdminPanel: (callback) => ipcRenderer.on('admin:open-panel', () => callback()),
 });

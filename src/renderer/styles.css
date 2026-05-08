@@ -26,7 +26,8 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   font-family: var(--font-body);
   color: var(--text);
   background:
@@ -46,11 +47,14 @@ body::before {
 }
 
 .app-shell {
-  max-width: 1500px;
+  max-width: 1480px;
   margin: 0 auto;
   padding: 24px;
   position: relative;
   z-index: 1;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .hero {
@@ -58,7 +62,7 @@ body::before {
   justify-content: space-between;
   gap: 24px;
   align-items: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
   animation: revealUp 0.45s ease both;
 }
 
@@ -79,7 +83,7 @@ p {
 
 h1 {
   font-family: var(--font-title);
-  font-size: clamp(31px, 3vw, 50px);
+  font-size: clamp(30px, 3vw, 48px);
   line-height: 1.05;
   letter-spacing: -0.02em;
 }
@@ -91,8 +95,8 @@ h2 {
 }
 
 .hero-copy {
-  margin-top: 12px;
-  max-width: 880px;
+  margin-top: 10px;
+  max-width: 700px;
   color: var(--muted);
   line-height: 1.5;
   font-weight: 500;
@@ -100,19 +104,20 @@ h2 {
 
 .hero-status {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .layout {
   display: grid;
-  grid-template-columns: 1.05fr 1.1fr 1.35fr;
+  grid-template-columns: 0.92fr 1.08fr;
   grid-template-areas:
-    'connect host saved'
-    'transfer host saved'
-    'admin admin admin';
+    'connect host'
+    'saved saved';
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
 .panel {
@@ -137,9 +142,19 @@ h2 {
 
 .connect-panel { grid-area: connect; }
 .host-panel { grid-area: host; }
-.saved-panel { grid-area: saved; min-height: 650px; }
-.transfer-panel { grid-area: transfer; }
-.admin-panel { grid-area: admin; }
+.saved-panel { grid-area: saved; min-height: 0; }
+
+.connect-panel,
+.host-panel,
+.saved-panel {
+  height: 100%;
+}
+
+.host-panel,
+.saved-panel {
+  display: flex;
+  flex-direction: column;
+}
 
 .panel-heading,
 .saved-header {
@@ -150,31 +165,61 @@ h2 {
   margin-bottom: 16px;
 }
 
-.host-meta {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
+.host-meta,
 .saved-tabs {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.host-meta {
+  justify-content: flex-end;
+}
+
+.chip,
+.badge,
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .chip {
-  padding: 8px 12px;
-  border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.06);
   color: var(--text);
-  font-size: 13px;
   font-weight: 700;
 }
 
 .chip.active {
   background: rgba(255, 159, 67, 0.24);
   border-color: rgba(255, 159, 67, 0.72);
+}
+
+.badge.offline,
+.badge.muted,
+.pill {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+}
+
+.badge.online {
+  background: rgba(43, 228, 198, 0.2);
+  color: #9bf7e8;
+}
+
+.badge.warn {
+  background: rgba(255, 184, 98, 0.22);
+  color: #ffe2b8;
+}
+
+.badge.danger {
+  background: rgba(255, 108, 120, 0.16);
+  color: #ffb2b8;
 }
 
 .info-grid {
@@ -209,13 +254,10 @@ h2 {
   margin-top: 6px;
   min-height: 20px;
   font-size: 13px;
-  line-height: 1.25;
-  font-variant-numeric: tabular-nums;
 }
 
 .label,
-.help,
-.preview-title {
+.help {
   color: var(--muted);
 }
 
@@ -230,16 +272,7 @@ h2 {
   margin-bottom: 14px;
 }
 
-.field input {
-  width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(2, 8, 18, 0.78);
-  color: var(--text);
-  border-radius: 14px;
-  padding: 14px 16px;
-  font: inherit;
-}
-
+.field input,
 .field select {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -272,73 +305,15 @@ h2 {
   display: none !important;
 }
 
-.admin-header {
-  margin-bottom: 20px;
-}
-
-.admin-view {
-  display: block;
-}
-
-.admin-form-grid {
+.mini-transfer {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
 }
 
-.checkbox-field {
-  justify-content: flex-end;
-}
-
-.checkbox-field input {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-}
-
-.admin-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.admin-card {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 16px;
-  background: rgba(4, 12, 22, 0.76);
-  padding: 14px;
-  display: grid;
-  gap: 8px;
-}
-
-.admin-card-title {
-  font-weight: 800;
-  font-size: 16px;
-}
-
-.admin-card-meta {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.admin-card-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.session-control {
-  margin-top: 8px;
-  margin-bottom: 10px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.2);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
+.compact-field {
+  margin-bottom: 0;
 }
 
 button {
@@ -379,42 +354,9 @@ button:disabled {
   box-shadow: none;
 }
 
-.badge,
-.pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 12px;
-  border-radius: 999px;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.badge.offline,
-.badge.muted,
-.pill {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--muted);
-}
-
-.badge.online {
-  background: rgba(43, 228, 198, 0.2);
-  color: #9bf7e8;
-}
-
-.badge.warn {
-  background: rgba(255, 184, 98, 0.22);
-  color: #ffe2b8;
-}
-
-.badge.danger {
-  background: rgba(255, 108, 120, 0.16);
-  color: #ffb2b8;
-}
-
 #localPreview {
   width: 100%;
-  height: 210px;
+  height: 132px;
   object-fit: contain;
   background: #02050b;
   margin-top: 8px;
@@ -424,9 +366,11 @@ button:disabled {
 
 .saved-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 10px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 .saved-card {
@@ -477,10 +421,93 @@ button:disabled {
   padding: 10px;
 }
 
+.admin-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: rgba(3, 9, 18, 0.72);
+  backdrop-filter: blur(12px);
+  padding: 28px;
+}
+
+.admin-dialog {
+  max-width: 1360px;
+  height: calc(100vh - 56px);
+  margin: 0 auto;
+  overflow: auto;
+}
+
+.admin-unlock {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(3, 9, 18, 0.76);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.admin-unlock-card {
+  width: min(480px, 100%);
+}
+
+.admin-header {
+  margin-bottom: 20px;
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.checkbox-field {
+  justify-content: flex-end;
+}
+
+.checkbox-field input {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+.admin-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-card {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  background: rgba(4, 12, 22, 0.76);
+  padding: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-card-title {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.admin-card-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.admin-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .panel:nth-of-type(1) { animation-delay: 0.05s; }
 .panel:nth-of-type(2) { animation-delay: 0.1s; }
 .panel:nth-of-type(3) { animation-delay: 0.16s; }
-.panel:nth-of-type(4) { animation-delay: 0.22s; }
 
 @keyframes revealUp {
   from {
@@ -498,15 +525,13 @@ button:disabled {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
       'connect host'
-      'saved saved'
-      'transfer transfer'
-      'admin admin';
+      'saved saved';
   }
 }
 
 @media (max-width: 940px) {
   .host-meta,
-  .session-control {
+  .mini-transfer {
     justify-content: flex-start;
   }
 
@@ -517,8 +542,15 @@ button:disabled {
 }
 
 @media (max-width: 980px) {
+  body {
+    height: auto;
+    overflow: auto;
+  }
+
   .app-shell {
     padding: 16px;
+    height: auto;
+    min-height: 100vh;
   }
 
   .hero {
@@ -530,8 +562,7 @@ button:disabled {
     grid-template-areas:
       'connect'
       'host'
-      'saved'
-      'transfer';
+      'saved';
   }
 
   h1 {

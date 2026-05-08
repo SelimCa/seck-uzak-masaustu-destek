@@ -1,7 +1,11 @@
 {
-  "appVersion": "0.1.2",
+  "appVersion": "0.1.4",
   "githubRepo": "SelimCa/seck-uzak-masaustu-destek",
   "licenseFile": "licenses.json",
   "licenseRequestWebhookUrl": "/license-request",
+  "signalServerUrl": "http://85.105.250.108:3131/",
+  "turnServerUrl": "",
+  "turnUsername": "",
+  "turnPassword": "",
   "adminAccessKey": "selim363636"
 }

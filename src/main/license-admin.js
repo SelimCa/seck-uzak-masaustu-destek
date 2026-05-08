@@ -156,9 +156,90 @@ function sortLicenses(devices) {
     .sort((left, right) => left.deviceCode.localeCompare(right.deviceCode, 'tr'));
 }
 
-async function getAdminDashboard() {
+function getRemoteRequestUrl(signalServerUrl) {
+  const baseUrl = String(signalServerUrl || '').trim();
+  if (!/^https?:\/\//i.test(baseUrl)) {
+    return '';
+  }
+
+  const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  return new URL('/license-requests', normalizedBaseUrl).toString();
+}
+
+async function readRemoteRequestStore(signalServerUrl) {
+  const requestUrl = getRemoteRequestUrl(signalServerUrl);
+  if (!requestUrl) {
+    return null;
+  }
+
+  const response = await fetch(requestUrl, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'Seck-Uzak-Masaustu-Admin',
+      'x-admin-key': String(getVersionConfig().adminAccessKey || '').trim(),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Uzak lisans talepleri okunamadi: HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  return {
+    requests: Array.isArray(payload.requests) ? payload.requests : [],
+    source: 'remote',
+  };
+}
+
+async function writeRemoteRequestStore(signalServerUrl, requests) {
+  const requestUrl = getRemoteRequestUrl(signalServerUrl);
+  if (!requestUrl) {
+    return null;
+  }
+
+  const response = await fetch(requestUrl, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'Seck-Uzak-Masaustu-Admin',
+      'x-admin-key': String(getVersionConfig().adminAccessKey || '').trim(),
+    },
+    body: JSON.stringify({ requests }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Uzak lisans talepleri guncellenemedi: HTTP ${response.status}`);
+  }
+
+  return { source: 'remote' };
+}
+
+async function readRequestStore(signalServerUrl) {
+  const remoteStore = await readRemoteRequestStore(signalServerUrl).catch(() => null);
+  if (remoteStore) {
+    return remoteStore;
+  }
+
+  return {
+    requests: Array.isArray(readLicenseRequests().requests) ? readLicenseRequests().requests : [],
+    source: 'local',
+  };
+}
+
+async function writeRequestStore(signalServerUrl, requests) {
+  const remoteResult = await writeRemoteRequestStore(signalServerUrl, requests).catch(() => null);
+  if (remoteResult) {
+    return remoteResult;
+  }
+
+  writeLicenseRequests({ requests });
+  return { source: 'local' };
+}
+
+async function getAdminDashboard({ signalServerUrl } = {}) {
   const licenseStore = await readLicenseStore();
-  const requestStore = readLicenseRequests();
+  const requestStore = await readRequestStore(signalServerUrl);
   return {
     source: licenseStore.source,
     requests: sortRequests(Array.isArray(requestStore.requests) ? requestStore.requests : []),
@@ -189,7 +270,7 @@ async function upsertLicense({ deviceCode, name, expires, active }) {
   return getAdminDashboard();
 }
 
-async function approveLicenseRequest({ deviceCode, name, expires }) {
+async function approveLicenseRequest({ deviceCode, name, expires, signalServerUrl }) {
   const normalizedDeviceCode = normalizeDeviceCode(deviceCode);
   const dashboard = await upsertLicense({
     deviceCode: normalizedDeviceCode,
@@ -198,7 +279,7 @@ async function approveLicenseRequest({ deviceCode, name, expires }) {
     active: true,
   });
 
-  const requestStore = readLicenseRequests();
+  const requestStore = await readRequestStore(signalServerUrl);
   const requests = Array.isArray(requestStore.requests) ? requestStore.requests : [];
   const updatedRequests = requests.map((requestItem) => {
     if (requestItem.deviceCode !== normalizedDeviceCode) {
@@ -211,7 +292,7 @@ async function approveLicenseRequest({ deviceCode, name, expires }) {
       updatedAt: new Date().toISOString(),
     };
   });
-  writeLicenseRequests({ requests: updatedRequests });
+  await writeRequestStore(signalServerUrl, updatedRequests);
 
   return {
     ...dashboard,
@@ -233,12 +314,12 @@ async function deleteLicense(deviceCode) {
   return getAdminDashboard();
 }
 
-function deleteLicenseRequest(deviceCode) {
+async function deleteLicenseRequest(deviceCode, signalServerUrl) {
   const normalizedDeviceCode = normalizeDeviceCode(deviceCode);
-  const requestStore = readLicenseRequests();
+  const requestStore = await readRequestStore(signalServerUrl);
   const requests = Array.isArray(requestStore.requests) ? requestStore.requests : [];
   const updatedRequests = requests.filter((requestItem) => requestItem.deviceCode !== normalizedDeviceCode);
-  writeLicenseRequests({ requests: updatedRequests });
+  await writeRequestStore(signalServerUrl, updatedRequests);
   return sortRequests(updatedRequests);
 }
 

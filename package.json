@@ -1,7 +1,7 @@
 {
   "name": "seck-uzak-masaustu-destek",
   "productName": "Seck Uzak Masaustu Destek",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "description": "Windows odakli uzak masaustu destek uygulamasi",
   "main": "src/main/main.js",
   "scripts": {
@@ -54,6 +54,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
+      "include": "build_tools/installer.nsh",
       "installerIcon": "src/assets/icons/app-icon.ico",
       "uninstallerIcon": "src/assets/icons/app-icon.ico"
     },

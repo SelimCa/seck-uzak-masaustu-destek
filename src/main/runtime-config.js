@@ -7,6 +7,10 @@ const DEFAULT_CONFIG = {
   githubRepo: 'SelimCa/seck-uzak-masaustu-destek',
   licenseFile: 'licenses.json',
   licenseRequestWebhookUrl: '',
+  signalServerUrl: '',
+  turnServerUrl: '',
+  turnUsername: '',
+  turnPassword: '',
 };
 
 function getWorkspaceRoot() {
