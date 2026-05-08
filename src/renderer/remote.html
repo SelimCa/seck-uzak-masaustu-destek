@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Uzak Ekran</title>
+  <link rel="stylesheet" href="./remote.css">
+</head>
+<body>
+  <div class="remote-shell">
+    <header class="topbar">
+      <div>
+        <h1>Uzak Ekran</h1>
+        <p id="statusText">Baglanti kuruluyor...</p>
+      </div>
+      <div class="actions">
+        <span id="sessionBadge" class="badge warn">El sikisimi</span>
+        <button id="fullscreenButton" class="primary">Tam Ekran</button>
+        <button id="disconnectButton">Baglantiyi Kapat</button>
+      </div>
+    </header>
+
+    <main id="remoteSurface" class="remote-surface" tabindex="0">
+      <video id="remoteVideo" autoplay playsinline></video>
+      <div id="overlay" class="overlay">Baglanti bekleniyor...</div>
+    </main>
+  </div>
+
+  <script src="../../node_modules/socket.io-client/dist/socket.io.min.js"></script>
+  <script src="./remote.js"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seck Uzak Masaustu Web</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="top">
+      <h1>Seck Uzak Masaustu Web</h1>
+      <p>Tarayicidan kod ve sifre ile baglan.</p>
+    </header>
+
+    <section class="connect-panel">
+      <label>
+        <span>Hedef bilgisayar kodu</span>
+        <input id="targetCode" type="text" placeholder="123-456-789">
+      </label>
+      <label>
+        <span>Sifre</span>
+        <input id="credential" type="password" placeholder="Degisen veya sabit sifre">
+      </label>
+      <label>
+        <span>Gorunen ad (istege bagli)</span>
+        <input id="viewerName" type="text" placeholder="Web Kullanici">
+      </label>
+      <div class="row">
+        <button id="connectButton" class="primary">Baglan</button>
+        <button id="disconnectButton">Kapat</button>
+        <button id="fullscreenButton">Tam Ekran</button>
+      </div>
+      <p id="statusText">Hazir.</p>
+    </section>
+
+    <section id="remoteSurface" class="remote-surface" tabindex="0">
+      <video id="remoteVideo" autoplay playsinline></video>
+      <div id="overlay" class="overlay">Baglanti bekleniyor</div>
+    </section>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

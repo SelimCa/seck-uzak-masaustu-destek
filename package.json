@@ -1,0 +1,67 @@
+{
+  "name": "seck-uzak-masaustu-destek",
+  "productName": "Seck Uzak Masaustu Destek",
+  "version": "0.1.0",
+  "description": "Windows odakli uzak masaustu destek uygulamasi",
+  "main": "src/main/main.js",
+  "scripts": {
+    "prestart": "node scripts/sync-version.js",
+    "start": "electron .",
+    "start-server": "node src/server/server.js",
+    "predev": "node scripts/sync-version.js",
+    "dev": "concurrently \"node src/server/server.js\" \"wait-on tcp:3131 && electron .\"",
+    "generate-icon": "node scripts/generate-icon.js",
+    "prebuild-win": "node scripts/sync-version.js",
+    "build-win": "electron-builder --win nsis",
+    "prebuild-portable": "node scripts/sync-version.js",
+    "build-portable": "electron-builder --win portable"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3",
+    "express": "^5.1.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^35.5.1",
+    "electron-builder": "^24.13.3",
+    "jimp": "^1.6.1",
+    "png-to-ico": "^3.0.1",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.seck.uzakmasaustu",
+    "productName": "Seck Uzak Masaustu Destek",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "version.json",
+      "package.json"
+    ],
+    "win": {
+      "icon": "src/assets/icons/app-icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "installerIcon": "src/assets/icons/app-icon.ico",
+      "uninstallerIcon": "src/assets/icons/app-icon.ico"
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://github.com/SelimCa/seck-uzak-masaustu-destek/releases/latest/download"
+      }
+    ]
+  }
+}

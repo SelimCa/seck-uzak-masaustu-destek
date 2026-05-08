@@ -1,0 +1,11 @@
+listening-port=3478
+fingerprint
+use-auth-secret
+static-auth-secret=BURAYA_GUCLU_BIR_SECRET_YAZ
+realm=seckdestek.example.com
+total-quota=100
+stale-nonce=600
+no-cli
+no-tls
+no-dtls
+external-ip=SUNUCUNUN_GENEL_IP_ADRESI

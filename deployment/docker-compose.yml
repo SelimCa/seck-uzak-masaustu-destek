@@ -1,0 +1,15 @@
+services:
+  signal-server:
+    image: node:24-alpine
+    working_dir: /app
+    command: sh -c "npm install && node src/server/server.js"
+    volumes:
+      - ..:/app
+    ports:
+      - "3131:3131"
+
+  coturn:
+    image: instrumentisto/coturn
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro

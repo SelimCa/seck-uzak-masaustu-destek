@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seck Uzak Masaustu Destek</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Windows Uzak Masaustu</p>
+        <h1>Seck Uzak Masaustu Destek</h1>
+        <p class="hero-copy">Hizli baglan, bilgisayarlari kaydet, favorilere ekle ve uzagi kendi bilgisayarin gibi yonet.</p>
+      </div>
+      <div class="hero-status">
+        <span id="socketBadge" class="badge offline">Sunucuya bagli degil</span>
+        <span id="sessionBadge" class="badge muted">Oturum yok</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel connect-panel">
+        <h2>Baglan</h2>
+        <label class="field">
+          <span>Hedef bilgisayar kodu</span>
+          <input id="targetCodeInput" type="text" placeholder="123-456-789">
+        </label>
+        <label class="field">
+          <span>Sifre</span>
+          <input id="targetPasswordInput" type="password" placeholder="Degisen veya sabit sifre">
+        </label>
+        <label class="field">
+          <span>Kayit adi (istege bagli)</span>
+          <input id="targetAliasInput" type="text" placeholder="Orn: Ofis Ana PC">
+        </label>
+        <div class="actions">
+          <button id="connectButton" class="primary">Baglan</button>
+          <button id="saveContactButton">Kaydet</button>
+          <button id="reconnectButton">Yeniden Baglan</button>
+        </div>
+        <p id="viewerStatus" class="help">Baglandiginda yeni bir uzak ekran penceresi acilir.</p>
+      </section>
+
+      <section class="panel host-panel">
+        <div class="panel-heading">
+          <h2>Bu Bilgisayar</h2>
+          <div class="host-meta">
+            <span id="appVersion" class="pill">v0.1.0</span>
+            <span id="deviceName" class="pill"></span>
+          </div>
+        </div>
+        <div class="info-grid">
+          <div class="info-card">
+            <span class="label">Bilgisayar Kodu</span>
+            <strong id="deviceCode">-</strong>
+          </div>
+          <div class="info-card accent">
+            <span class="label">Degisen Sifre</span>
+            <strong id="rollingPassword">------</strong>
+            <small id="rollingCountdown">30 sn sonra yenilenir</small>
+          </div>
+        </div>
+        <label class="field">
+          <span>Sabit sifre</span>
+          <input id="fixedPasswordInput" type="password" placeholder="Istersen sabit sifre belirle">
+        </label>
+        <label class="field">
+          <span>Lisans anahtari</span>
+          <input id="licenseKeyInput" type="text" placeholder="Orn: ABCD-1234-EFGH-5678">
+        </label>
+        <div class="actions">
+          <button id="savePasswordButton" class="primary">Sabit Sifreyi Kaydet</button>
+          <button id="clearPasswordButton">Sabit Sifreyi Temizle</button>
+          <button id="shareScreenButton">Ekran Paylasimini Hazirla</button>
+        </div>
+        <div class="actions compact-actions">
+          <button id="saveLicenseButton">Lisansi Kaydet</button>
+          <button id="checkUpdatesButton">Guncellemeyi Kontrol Et</button>
+        </div>
+        <p id="licenseStatus" class="help">Lisans kontrol ediliyor...</p>
+        <p id="hostStatus" class="help">Baglanti geldiginde paylasmak istedigin ekran secilecek veya onceki secim kullanilacak.</p>
+        <div class="session-control">
+          <p id="connectedViewer" class="help">Bagli istemci yok.</p>
+          <button id="endSessionButton" class="danger-btn" disabled>Oturumu Sonlandir</button>
+        </div>
+        <video id="localPreview" autoplay playsinline muted></video>
+      </section>
+
+      <section class="panel saved-panel">
+        <div class="saved-header">
+          <h2>Kayitli Bilgisayarlar</h2>
+          <div class="saved-tabs">
+            <button id="tabAllButton" class="chip active">Tum</button>
+            <button id="tabFavoritesButton" class="chip">Sik Kullanilan</button>
+            <button id="tabRecentButton" class="chip">Son Baglanilan</button>
+          </div>
+        </div>
+        <div id="savedList" class="saved-list"></div>
+        <p id="savedHint" class="help">Hedef kodu girip Kaydet dediginde bilgisayar listene eklenir.</p>
+      </section>
+
+      <section class="panel transfer-panel">
+        <h2>Dosya Transferi</h2>
+        <label class="field file-picker">
+          <span>Gonderilecek dosya</span>
+          <input id="fileInput" type="file">
+        </label>
+        <div class="actions">
+          <button id="sendFileButton" class="primary">Dosyayi Gonder</button>
+        </div>
+        <p id="transferStatus" class="help">Gelen dosyalar otomatik olarak Indirilenler/Seck Uzak Masaustu Gelenler klasorune kaydedilir.</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="../../node_modules/socket.io-client/dist/socket.io.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

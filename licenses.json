@@ -1,0 +1,9 @@
+{
+  "licenses": {
+    "ORNK-LISANS-ANAHTARI": {
+      "name": "Ornek Musteri",
+      "active": true,
+      "expires": "2027-12-31"
+    }
+  }
+}
