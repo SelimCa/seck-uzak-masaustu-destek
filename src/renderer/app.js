@@ -419,7 +419,9 @@
     refs.fixedPasswordInput.placeholder = state.config.hasFixedPassword
       ? 'Sabit sifre aktif, degistirmek icin yeni sifre gir'
       : 'Istersen sabit sifre belirle';
-    refs.fixedPasswordInput.value = state.config.fixedPasswordValue || '';
+    if (document.activeElement !== refs.fixedPasswordInput) {
+      refs.fixedPasswordInput.value = state.config.fixedPasswordValue || '';
+    }
     refs.configureWakeOnLanButton.classList.toggle('active', Boolean(state.config.wakeOnLanReady));
 
     const licenseState = state.config.licenseStatus || { ok: false, message: 'Lisans kontrol ediliyor...' };
