@@ -2,6 +2,7 @@
   const query = new URLSearchParams(window.location.search);
 
   const DEVICE_BOOK_KEY = 'seck-device-book-v1';
+  const POINTER_SEND_INTERVAL_MS = 12;
 
   const config = {
     targetCode: String(query.get('targetCode') || '').trim(),
@@ -208,7 +209,7 @@
       }
 
       const now = Date.now();
-      if (now - state.lastMoveAt < 30) {
+      if (now - state.lastMoveAt < POINTER_SEND_INTERVAL_MS) {
         return;
       }
 
@@ -307,7 +308,10 @@
       }
     };
 
-    const channel = state.peerConnection.createDataChannel('anydeks-control');
+    const channel = state.peerConnection.createDataChannel('anydeks-control', {
+      ordered: false,
+      maxRetransmits: 0,
+    });
     setupDataChannel(channel);
 
     const offer = await state.peerConnection.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true });

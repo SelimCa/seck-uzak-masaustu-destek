@@ -56,6 +56,58 @@ const TRAY_ICON_PATH = path.join(__dirname, '../assets/icons/tray-icon.png');
 const SIGNAL_SERVER_PORT = Number(process.env.ANYDEKS_SIGNAL_PORT || 3131);
 let embeddedSignalServer = null;
 
+function buildApplicationMenu() {
+  return Menu.buildFromTemplate([
+    {
+      label: 'Dosya',
+      submenu: [
+        { label: 'Kapat', role: 'close' },
+      ],
+    },
+    {
+      label: 'Duzen',
+      submenu: [
+        { label: 'Geri Al', role: 'undo' },
+        { label: 'Yinele', role: 'redo' },
+        { type: 'separator' },
+        { label: 'Kes', role: 'cut' },
+        { label: 'Kopyala', role: 'copy' },
+        { label: 'Yapistir', role: 'paste' },
+        { label: 'Tumunu Sec', role: 'selectAll' },
+      ],
+    },
+    {
+      label: 'Gorunum',
+      submenu: [
+        { label: 'Yeniden Yukle', role: 'reload' },
+        { label: 'Zorla Yeniden Yukle', role: 'forceReload' },
+        { type: 'separator' },
+        { label: 'Gercek Boyut', role: 'resetZoom' },
+        { label: 'Yakinlastir', role: 'zoomIn' },
+        { label: 'Uzaklastir', role: 'zoomOut' },
+        { type: 'separator' },
+        { label: 'Tam Ekran', role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Pencere',
+      submenu: [
+        { label: 'Kucult', role: 'minimize' },
+        { label: 'Kapat', role: 'close' },
+      ],
+    },
+    {
+      label: 'Yardim',
+      submenu: [
+        {
+          label: 'GitHub Sayfasini Ac',
+          click: () => shell.openExternal('https://github.com/SelimCa/seck-uzak-masaustu-destek'),
+        },
+      ],
+    },
+  ]);
+}
+
 function revealMainWindow({ openAdminPanel = false } = {}) {
   if (!mainWindow) {
     return;
@@ -471,6 +523,7 @@ app.whenReady().then(async () => {
   await ensureEmbeddedSignalServer();
   configureDisplayMediaHandling();
   app.setAppUserModelId('com.seck.uzakmasaustu');
+  Menu.setApplicationMenu(buildApplicationMenu());
   licenseState = await refreshLicenseStatus(config.deviceCode);
   saveConfig();
   app.setLoginItemSettings({

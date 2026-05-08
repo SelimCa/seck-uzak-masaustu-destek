@@ -60,6 +60,14 @@
 
   const DEVICE_BOOK_KEY = 'seck-device-book-v1';
   const SESSION_CHANNEL_NAME = 'seck-host-session';
+  const REMOTE_STREAM_PROFILE = {
+    maxFrameRate: 18,
+    idealWidth: 1600,
+    idealHeight: 900,
+    maxWidth: 1920,
+    maxHeight: 1080,
+    maxBitrate: 2500000,
+  };
 
   const state = {
     config: null,
@@ -684,9 +692,9 @@
       stream = await navigator.mediaDevices.getDisplayMedia({
         audio: false,
         video: {
-          frameRate: { ideal: 24, max: 24 },
-          width: { ideal: 1920, max: 3840 },
-          height: { ideal: 1080, max: 2160 },
+          frameRate: { ideal: REMOTE_STREAM_PROFILE.maxFrameRate, max: REMOTE_STREAM_PROFILE.maxFrameRate },
+          width: { ideal: REMOTE_STREAM_PROFILE.idealWidth, max: REMOTE_STREAM_PROFILE.maxWidth },
+          height: { ideal: REMOTE_STREAM_PROFILE.idealHeight, max: REMOTE_STREAM_PROFILE.maxHeight },
         },
       });
     }
@@ -703,6 +711,9 @@
     }
 
     const [videoTrack] = stream.getVideoTracks();
+    if (videoTrack) {
+      videoTrack.contentHint = 'motion';
+    }
     videoTrack.addEventListener('ended', () => {
       state.localStream = null;
       refs.localPreview.srcObject = null;
@@ -715,6 +726,30 @@
     refs.localPreview.classList.remove('hidden');
     setText(refs.hostStatus, 'Ekran paylasimi hazir.');
     return stream;
+  }
+
+  async function optimizeVideoSender(peer) {
+    const sender = peer.getSenders().find((item) => item.track?.kind === 'video');
+    if (!sender || typeof sender.getParameters !== 'function' || typeof sender.setParameters !== 'function') {
+      return;
+    }
+
+    const parameters = sender.getParameters();
+    const encoding = parameters.encodings?.[0] || {};
+    parameters.degradationPreference = 'maintain-framerate';
+    parameters.encodings = [{
+      ...encoding,
+      maxBitrate: REMOTE_STREAM_PROFILE.maxBitrate,
+      maxFramerate: REMOTE_STREAM_PROFILE.maxFrameRate,
+      priority: 'high',
+      networkPriority: 'high',
+    }];
+
+    try {
+      await sender.setParameters(parameters);
+    }
+    catch {
+    }
   }
 
   function resetHostSession() {
@@ -763,6 +798,7 @@
     stream.getTracks().forEach((track) => {
       peer.addTrack(track, stream);
     });
+    await optimizeVideoSender(peer);
 
     peer.onicecandidate = ({ candidate }) => {
       if (!candidate || !state.activePeerSocketId) {
@@ -821,7 +857,7 @@
 
       if (message.kind === 'input') {
         const translated = translateInputPayload(message.payload);
-        await window.anydeksApi.performInput(translated);
+        void window.anydeksApi.performInput(translated);
         return;
       }
 

@@ -1,7 +1,7 @@
 {
   "name": "seck-uzak-masaustu-destek",
   "productName": "Seck Uzak Masaustu Destek",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Windows odakli uzak masaustu destek uygulamasi",
   "main": "src/main/main.js",
   "scripts": {

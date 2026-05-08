@@ -1,4 +1,6 @@
 (function bootstrapWebClient() {
+  const POINTER_SEND_INTERVAL_MS = 12;
+
   const refs = {
     targetCode: document.querySelector('#targetCode'),
     credential: document.querySelector('#credential'),
@@ -125,7 +127,7 @@
       }
 
       const now = Date.now();
-      if (now - state.lastMoveAt < 30) {
+      if (now - state.lastMoveAt < POINTER_SEND_INTERVAL_MS) {
         return;
       }
 
@@ -206,7 +208,10 @@
       hideOverlay();
     };
 
-    const channel = state.peerConnection.createDataChannel('anydeks-control');
+    const channel = state.peerConnection.createDataChannel('anydeks-control', {
+      ordered: false,
+      maxRetransmits: 0,
+    });
     setupDataChannel(channel);
 
     const offer = await state.peerConnection.createOffer({ offerToReceiveVideo: true });
