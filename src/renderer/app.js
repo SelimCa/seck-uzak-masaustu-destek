@@ -11,12 +11,13 @@
     rollingPassword: $('#rollingPassword'),
     rollingCountdown: $('#rollingCountdown'),
     fixedPasswordInput: $('#fixedPasswordInput'),
+    toggleFixedPasswordButton: $('#toggleFixedPasswordButton'),
     savePasswordButton: $('#savePasswordButton'),
     refreshLicenseButton: $('#refreshLicenseButton'),
     requestLicenseButton: $('#requestLicenseButton'),
     checkUpdatesButton: $('#checkUpdatesButton'),
     clearPasswordButton: $('#clearPasswordButton'),
-    shareScreenButton: $('#shareScreenButton'),
+    configureWakeOnLanButton: $('#configureWakeOnLanButton'),
     licenseStatus: $('#licenseStatus'),
     hostStatus: $('#hostStatus'),
     connectedViewer: $('#connectedViewer'),
@@ -32,6 +33,7 @@
     tabAllButton: $('#tabAllButton'),
     tabFavoritesButton: $('#tabFavoritesButton'),
     tabRecentButton: $('#tabRecentButton'),
+    tabDiscoverButton: $('#tabDiscoverButton'),
     fileInput: $('#fileInput'),
     sendFileButton: $('#sendFileButton'),
     transferStatus: $('#transferStatus'),
@@ -80,6 +82,7 @@
     incomingFile: null,
     selectedSourceId: null,
     savedFilter: 'all',
+    discoveredHosts: [],
     activeViewerName: '',
     adminTab: 'requests',
     adminDashboard: { requests: [], licenses: [], source: '' },
@@ -247,6 +250,9 @@
       alias: '',
       lastKnownName: '',
       favorite: false,
+      macAddress: '',
+      broadcastAddress: '',
+      wakeOnLanReady: false,
       lastConnectedAt: 0,
       thumbnailDataUrl: '',
     };
@@ -275,6 +281,10 @@
   }
 
   function getFilteredDevices() {
+    if (state.savedFilter === 'discover') {
+      return state.discoveredHosts;
+    }
+
     const devices = Object.values(loadBook().devices || {});
 
     if (state.savedFilter === 'favorites') {
@@ -300,7 +310,9 @@
     const devices = getFilteredDevices();
 
     if (!devices.length) {
-      refs.savedList.innerHTML = '<p class="help">Henuz kayitli bilgisayar yok.</p>';
+      refs.savedList.innerHTML = state.savedFilter === 'discover'
+        ? '<p class="help">Ayni agda kesfedilen cevrimici bilgisayar yok.</p>'
+        : '<p class="help">Henuz kayitli bilgisayar yok.</p>';
       return;
     }
 
@@ -308,6 +320,10 @@
       const name = item.alias || item.lastKnownName || 'Adsiz Bilgisayar';
       const thumb = item.thumbnailDataUrl || placeholderThumb(item.code);
       const dateText = item.lastConnectedAt ? new Date(item.lastConnectedAt).toLocaleString('tr-TR') : 'Henuz baglanilmadi';
+      const canWake = Boolean(item.macAddress && item.broadcastAddress);
+      const extraMeta = state.savedFilter === 'discover'
+        ? `<div class="saved-code">IP: ${item.address || '-'}</div><div class="saved-code">Wake-on-LAN: ${item.wakeOnLanReady ? 'Hazir' : 'Hazir degil'}</div>`
+        : '';
       return `
         <article class="saved-card" data-code="${item.code}">
           <img class="saved-thumb" src="${thumb}" alt="${name}">
@@ -315,10 +331,12 @@
             <div class="saved-name">${name}</div>
             <div class="saved-code">Kod: ${item.code}</div>
             <div class="saved-code">Son: ${dateText}</div>
+            ${extraMeta}
             <div class="saved-actions">
               <button data-action="connect" data-code="${item.code}">Baglan</button>
               <button data-action="favorite" data-code="${item.code}">${item.favorite ? 'Favoriden Cikar' : 'Favori Yap'}</button>
               <button data-action="rename" data-code="${item.code}">Adlandir</button>
+              <button data-action="wake" data-code="${item.code}" ${canWake ? '' : 'disabled'}>Uyandir</button>
               <button data-action="delete" data-code="${item.code}">Sil</button>
             </div>
           </div>
@@ -327,11 +345,64 @@
     }).join('');
   }
 
+  function getLocalNetworkPrefixes() {
+    return (state.config?.localNetworkAdapters || []).map((item) => item.prefix).filter(Boolean);
+  }
+
+  function mergeDiscoveryIntoBook(discoveredHosts) {
+    const book = loadBook();
+    const devices = book.devices || {};
+
+    discoveredHosts.forEach((host) => {
+      const code = formatCode(host.deviceCode || host.code);
+      if (normalizeCode(code).length !== 9) {
+        return;
+      }
+
+      const adapter = (host.localNetworkAdapters || []).find((item) => item.mac && item.address) || host.localNetworkAdapters?.[0] || {};
+      const current = devices[code] || {
+        code,
+        alias: '',
+        favorite: false,
+        lastConnectedAt: 0,
+        thumbnailDataUrl: '',
+      };
+
+      devices[code] = {
+        ...current,
+        code,
+        lastKnownName: host.deviceName || current.lastKnownName || '',
+        macAddress: adapter.mac || current.macAddress || '',
+        broadcastAddress: adapter.broadcast || current.broadcastAddress || '',
+        address: adapter.address || current.address || '',
+        wakeOnLanReady: Boolean(host.wakeOnLanReady),
+      };
+    });
+
+    saveBook({ devices });
+  }
+
+  function refreshDiscovery() {
+    if (!state.socket?.connected) {
+      state.discoveredHosts = [];
+      renderSavedDevices();
+      return;
+    }
+
+    state.socket.emit('discover:request', {
+      networkPrefixes: getLocalNetworkPrefixes(),
+    });
+  }
+
   function setActiveTab(filter) {
     state.savedFilter = filter;
     refs.tabAllButton.classList.toggle('active', filter === 'all');
     refs.tabFavoritesButton.classList.toggle('active', filter === 'favorites');
     refs.tabRecentButton.classList.toggle('active', filter === 'recent');
+    refs.tabDiscoverButton.classList.toggle('active', filter === 'discover');
+    if (filter === 'discover') {
+      refreshDiscovery();
+    }
     renderSavedDevices();
   }
 
@@ -348,6 +419,8 @@
     refs.fixedPasswordInput.placeholder = state.config.hasFixedPassword
       ? 'Sabit sifre aktif, degistirmek icin yeni sifre gir'
       : 'Istersen sabit sifre belirle';
+    refs.fixedPasswordInput.value = state.config.fixedPasswordValue || '';
+    refs.configureWakeOnLanButton.classList.toggle('active', Boolean(state.config.wakeOnLanReady));
 
     const licenseState = state.config.licenseStatus || { ok: false, message: 'Lisans kontrol ediliyor...' };
     const statusParts = [licenseState.message || 'Lisans kontrol ediliyor...'];
@@ -537,7 +610,13 @@
       socket.emit('host:register', {
         deviceCode: state.config.deviceCode,
         deviceName: state.config.deviceName,
+        localNetworkAdapters: state.config.localNetworkAdapters || [],
+        wakeOnLanReady: Boolean(state.config.wakeOnLanReady),
       });
+
+      if (state.savedFilter === 'discover') {
+        refreshDiscovery();
+      }
     });
 
     socket.on('disconnect', () => {
@@ -627,6 +706,29 @@
       resetHostSession();
       setText(refs.hostStatus, reason || 'Uzak istemci oturumu sonlandirdi.');
       setText(refs.transferStatus, 'Oturum kapandi.');
+    });
+
+    socket.on('discover:result', ({ hosts }) => {
+      state.discoveredHosts = (Array.isArray(hosts) ? hosts : []).map((host) => {
+        const adapter = (host.localNetworkAdapters || []).find((item) => item.mac && item.address) || host.localNetworkAdapters?.[0] || {};
+        return {
+          code: formatCode(host.deviceCode),
+          alias: '',
+          lastKnownName: host.deviceName || '',
+          favorite: false,
+          lastConnectedAt: host.registeredAt || 0,
+          thumbnailDataUrl: '',
+          macAddress: adapter.mac || '',
+          broadcastAddress: adapter.broadcast || '',
+          address: adapter.address || '',
+          wakeOnLanReady: Boolean(host.wakeOnLanReady),
+        };
+      });
+
+      mergeDiscoveryIntoBook(state.discoveredHosts);
+      if (state.savedFilter === 'discover') {
+        renderSavedDevices();
+      }
     });
   }
 
@@ -924,7 +1026,6 @@
   async function handleSendFile() {
     const file = refs.fileInput.files?.[0];
     if (!file) {
-      setText(refs.transferStatus, 'Once bir dosya sec.');
       return;
     }
 
@@ -947,6 +1048,7 @@
 
     state.dataChannel.send(JSON.stringify({ kind: 'file-end' }));
     setText(refs.transferStatus, `${file.name} gonderildi.`);
+    refs.fileInput.value = '';
   }
 
   function openRemoteWindow(code, credential, alias) {
@@ -989,7 +1091,8 @@
       const code = button.getAttribute('data-code') || '';
       const action = button.getAttribute('data-action');
       const devices = loadBook().devices || {};
-      const device = devices[code];
+      const discovered = state.discoveredHosts.find((item) => item.code === code);
+      const device = devices[code] || discovered;
       if (!device) {
         return;
       }
@@ -1018,6 +1121,19 @@
         }
 
         upsertDevice(code, { alias: alias.trim() });
+        setText(refs.savedHint, `${code} icin ad guncellendi.`);
+        return;
+      }
+
+      if (action === 'wake') {
+        window.anydeksApi.wakeDevice({
+          macAddress: device.macAddress,
+          broadcastAddress: device.broadcastAddress,
+        }).then((result) => {
+          setText(refs.savedHint, result.message || `${code} icin uyandirma paketi gonderildi.`);
+        }).catch((error) => {
+          setText(refs.savedHint, `Wake-on-LAN gonderilemedi: ${error.message}`);
+        });
         return;
       }
 
@@ -1042,9 +1158,14 @@
 
     refs.savePasswordButton.addEventListener('click', async () => {
       state.config = await window.anydeksApi.setFixedPassword(refs.fixedPasswordInput.value);
-      refs.fixedPasswordInput.value = '';
       updateConfigView();
       setText(refs.hostStatus, state.config.hasFixedPassword ? 'Sabit sifre kaydedildi.' : 'Sabit sifre devre disi birakildi.');
+    });
+
+    refs.toggleFixedPasswordButton.addEventListener('click', () => {
+      const nextType = refs.fixedPasswordInput.type === 'password' ? 'text' : 'password';
+      refs.fixedPasswordInput.type = nextType;
+      refs.toggleFixedPasswordButton.textContent = nextType === 'password' ? 'Goster' : 'Gizle';
     });
 
     refs.clearPasswordButton.addEventListener('click', async () => {
@@ -1102,17 +1223,11 @@
       }
     });
 
-    refs.shareScreenButton.addEventListener('click', async () => {
-      try {
-        if (!canUseRemoteFeatures()) {
-          throw new Error(getLicenseMessage());
-        }
-
-        await ensureLocalStream();
-      }
-      catch (error) {
-        setText(refs.hostStatus, `Ekran secimi iptal edildi veya hata olustu: ${error.message}`);
-      }
+    refs.configureWakeOnLanButton.addEventListener('click', async () => {
+      const result = await window.anydeksApi.configureWakeOnLan();
+      state.config = result.config;
+      updateConfigView();
+      setText(refs.hostStatus, result.message || 'Wake-on-LAN ayari guncellendi.');
     });
 
     refs.saveContactButton.addEventListener('click', () => {
@@ -1147,11 +1262,13 @@
       }
     });
 
-    refs.sendFileButton.addEventListener('click', handleSendFile);
+    refs.sendFileButton.addEventListener('click', () => refs.fileInput.click());
+    refs.fileInput.addEventListener('change', handleSendFile);
 
     refs.tabAllButton.addEventListener('click', () => setActiveTab('all'));
     refs.tabFavoritesButton.addEventListener('click', () => setActiveTab('favorites'));
     refs.tabRecentButton.addEventListener('click', () => setActiveTab('recent'));
+    refs.tabDiscoverButton.addEventListener('click', () => setActiveTab('discover'));
     refs.adminTabRequestsButton.addEventListener('click', () => setAdminTab('requests'));
     refs.adminTabLicensesButton.addEventListener('click', () => setAdminTab('licenses'));
     refs.adminRefreshButton.addEventListener('click', async () => {

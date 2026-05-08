@@ -192,7 +192,7 @@ app.post('/license-request', async (request, response) => {
 });
 
 io.on('connection', (socket) => {
-  socket.on('host:register', ({ deviceCode, deviceName }) => {
+  socket.on('host:register', ({ deviceCode, deviceName, localNetworkAdapters, wakeOnLanReady }) => {
     if (!deviceCode) {
       return;
     }
@@ -200,6 +200,8 @@ io.on('connection', (socket) => {
     hosts.set(deviceCode, {
       socketId: socket.id,
       deviceName,
+      localNetworkAdapters: Array.isArray(localNetworkAdapters) ? localNetworkAdapters : [],
+      wakeOnLanReady: Boolean(wakeOnLanReady),
       registeredAt: Date.now(),
     });
 
@@ -250,6 +252,30 @@ io.on('connection', (socket) => {
     io.to(to).emit('signal:relay', {
       from: socket.id,
       payload,
+    });
+  });
+
+  socket.on('discover:request', ({ networkPrefixes }) => {
+    const prefixes = Array.isArray(networkPrefixes) ? networkPrefixes.filter(Boolean) : [];
+    const discoveredHosts = Array.from(hosts.entries())
+      .filter(([, host]) => host.socketId !== socket.id)
+      .filter(([, host]) => {
+        if (!prefixes.length) {
+          return true;
+        }
+
+        return (host.localNetworkAdapters || []).some((adapter) => prefixes.includes(adapter.prefix));
+      })
+      .map(([deviceCode, host]) => ({
+        deviceCode,
+        deviceName: host.deviceName || '',
+        registeredAt: host.registeredAt,
+        wakeOnLanReady: Boolean(host.wakeOnLanReady),
+        localNetworkAdapters: host.localNetworkAdapters || [],
+      }));
+
+    io.to(socket.id).emit('discover:result', {
+      hosts: discoveredHosts,
     });
   });
 

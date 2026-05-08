@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('anydeksApi', {
   refreshLicenseStatus: () => ipcRenderer.invoke('license:refresh'),
   requestLicense: () => ipcRenderer.invoke('license:request'),
   checkForUpdates: () => ipcRenderer.invoke('updates:check-now'),
+  configureWakeOnLan: () => ipcRenderer.invoke('wol:configure'),
+  wakeDevice: (payload) => ipcRenderer.invoke('wol:wake', payload),
   validateCredential: (value) => ipcRenderer.invoke('auth:validate-credential', value),
   getDisplayInfo: () => ipcRenderer.invoke('desktop:get-display-info'),
   listDesktopSources: () => ipcRenderer.invoke('desktop:list-sources'),

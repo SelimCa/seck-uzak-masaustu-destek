@@ -283,6 +283,16 @@ h2 {
   font: inherit;
 }
 
+.input-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.inline-button {
+  min-width: 88px;
+}
+
 .field input:focus,
 .field select:focus {
   outline: none;
@@ -369,7 +379,10 @@ button:disabled {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 10px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
   padding-right: 4px;
 }
 
@@ -417,8 +430,8 @@ button:disabled {
   border-radius: 9px;
 }
 
-.file-picker input {
-  padding: 10px;
+.hidden-file-input {
+  display: none;
 }
 
 .admin-panel {

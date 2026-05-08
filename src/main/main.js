@@ -1,5 +1,6 @@
 const { app, BrowserWindow, desktopCapturer, dialog, ipcMain, Menu, Notification, screen, shell, Tray, session } = require('electron');
 const { spawn } = require('node:child_process');
+const dgram = require('node:dgram');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -55,6 +56,94 @@ const APP_ICON_PATH = path.join(__dirname, '../assets/icons/app-icon.ico');
 const TRAY_ICON_PATH = path.join(__dirname, '../assets/icons/tray-icon.png');
 const SIGNAL_SERVER_PORT = Number(process.env.ANYDEKS_SIGNAL_PORT || 3131);
 let embeddedSignalServer = null;
+
+function ipv4ToInt(ipv4) {
+  return String(ipv4 || '').split('.').reduce((result, part) => ((result << 8) >>> 0) + Number(part || 0), 0) >>> 0;
+}
+
+function intToIpv4(value) {
+  return [24, 16, 8, 0].map((shift) => ((value >>> shift) & 255)).join('.');
+}
+
+function getLocalNetworkAdapters() {
+  const interfaces = os.networkInterfaces();
+  return Object.entries(interfaces).flatMap(([name, items]) => (items || [])
+    .filter((item) => item && item.family === 'IPv4' && !item.internal && item.address)
+    .map((item) => {
+      const cidrSuffix = Number(String(item.cidr || '').split('/')[1] || 24);
+      const mask = cidrSuffix <= 0 ? 0 : (0xffffffff << (32 - cidrSuffix)) >>> 0;
+      const addressInt = ipv4ToInt(item.address);
+      const broadcast = intToIpv4((addressInt & mask) | (~mask >>> 0));
+      const prefix = intToIpv4(addressInt & mask);
+      return {
+        name,
+        address: item.address,
+        cidr: item.cidr || `${item.address}/${cidrSuffix}`,
+        mac: String(item.mac || '').toUpperCase(),
+        broadcast,
+        prefix,
+      };
+    }));
+}
+
+function normalizeMacAddress(value) {
+  const compact = String(value || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+  if (compact.length !== 12) {
+    return '';
+  }
+
+  return compact.match(/.{1,2}/g).join(':');
+}
+
+function sendMagicPacket({ macAddress, broadcastAddress }) {
+  return new Promise((resolve, reject) => {
+    const normalizedMac = normalizeMacAddress(macAddress);
+    if (!normalizedMac) {
+      reject(new Error('Gecerli bir MAC adresi bulunamadi.'));
+      return;
+    }
+
+    const macBytes = Buffer.from(normalizedMac.replace(/:/g, ''), 'hex');
+    const packet = Buffer.alloc(6 + (16 * macBytes.length), 0xff);
+    for (let index = 0; index < 16; index += 1) {
+      macBytes.copy(packet, 6 + (index * macBytes.length));
+    }
+
+    const socket = dgram.createSocket('udp4');
+    socket.once('error', (error) => {
+      socket.close();
+      reject(error);
+    });
+
+    socket.bind(0, () => {
+      socket.setBroadcast(true);
+      const targets = [9, 7];
+      let pending = targets.length;
+      let failed = false;
+
+      targets.forEach((port) => {
+        socket.send(packet, port, broadcastAddress || '255.255.255.255', (error) => {
+          if (failed) {
+            return;
+          }
+
+          if (error) {
+            failed = true;
+            socket.close();
+            reject(error);
+            return;
+          }
+
+          pending -= 1;
+          if (pending === 0) {
+            socket.close();
+            resolve(true);
+          }
+        });
+      });
+    });
+  });
+}
 
 function buildApplicationMenu() {
   return Menu.buildFromTemplate([
@@ -271,6 +360,7 @@ function loadConfig() {
       rollingSecret: parsed.rollingSecret || generateSecret(),
       fixedPasswordHash: parsed.fixedPasswordHash || '',
       fixedPasswordSalt: parsed.fixedPasswordSalt || '',
+      fixedPasswordValue: parsed.fixedPasswordValue || '',
       turnServerUrl: AUTO_NETWORK.turnServerUrl,
       turnUsername: AUTO_NETWORK.turnUsername,
       turnPassword: AUTO_NETWORK.turnPassword,
@@ -278,6 +368,7 @@ function loadConfig() {
       permissionsPrompted: Boolean(parsed.permissionsPrompted),
       startupEnabled: parsed.startupEnabled === undefined ? true : Boolean(parsed.startupEnabled),
       firewallRuleAdded: Boolean(parsed.firewallRuleAdded),
+      wakeOnLanConfigured: Boolean(parsed.wakeOnLanConfigured),
     };
   }
   catch {
@@ -293,6 +384,7 @@ function createDefaultConfig() {
     rollingSecret: generateSecret(),
     fixedPasswordHash: '',
     fixedPasswordSalt: '',
+    fixedPasswordValue: '',
     turnServerUrl: AUTO_NETWORK.turnServerUrl,
     turnUsername: AUTO_NETWORK.turnUsername,
     turnPassword: AUTO_NETWORK.turnPassword,
@@ -300,6 +392,7 @@ function createDefaultConfig() {
     permissionsPrompted: false,
     startupEnabled: true,
     firewallRuleAdded: false,
+    wakeOnLanConfigured: false,
   };
 }
 
@@ -323,6 +416,9 @@ function publicConfig() {
     licenseStatus: licenseState,
     adminAuthorized: Boolean(config.adminAuthorized),
     hasFixedPassword: Boolean(config.fixedPasswordHash),
+    fixedPasswordValue: config.fixedPasswordValue || '',
+    localNetworkAdapters: getLocalNetworkAdapters(),
+    wakeOnLanReady: Boolean(config.wakeOnLanConfigured),
     rollingPassword: generateRollingPassword(config.rollingSecret),
     rollingPasswordTtl: secondsUntilPasswordRefresh(),
   };
@@ -467,6 +563,30 @@ function requestFirewallRuleWithElevation() {
   });
 }
 
+function configureWakeOnLanWithElevation() {
+  return new Promise((resolve) => {
+    const script = [
+      "$adapters = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -ne 'Disabled' }",
+      "foreach ($adapter in $adapters) {",
+      "  Enable-NetAdapterPowerManagement -Name $adapter.Name -WakeOnMagicPacket Enabled -ErrorAction SilentlyContinue | Out-Null",
+      "  Set-NetAdapterAdvancedProperty -Name $adapter.Name -DisplayName 'Wake on Magic Packet' -DisplayValue 'Enabled' -NoRestart -ErrorAction SilentlyContinue | Out-Null",
+      "  Set-NetAdapterAdvancedProperty -Name $adapter.Name -DisplayName 'Shutdown Wake-On-Lan' -DisplayValue 'Enabled' -NoRestart -ErrorAction SilentlyContinue | Out-Null",
+      "  Set-NetAdapterAdvancedProperty -Name $adapter.Name -DisplayName 'Wake on pattern match' -DisplayValue 'Disabled' -NoRestart -ErrorAction SilentlyContinue | Out-Null",
+      "}",
+      "exit 0",
+    ].join('; ');
+
+    const command = `Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command \"${script}\"' -Wait`;
+    const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command], {
+      windowsHide: true,
+      detached: false,
+    });
+
+    child.on('exit', (code) => resolve(code === 0));
+    child.on('error', () => resolve(false));
+  });
+}
+
 async function ensureFirstRunPermissions() {
   if (config.permissionsPrompted) {
     return;
@@ -586,15 +706,47 @@ ipcMain.handle('config:set-fixed-password', (_event, password) => {
   if (!cleanPassword) {
     config.fixedPasswordHash = '';
     config.fixedPasswordSalt = '';
+    config.fixedPasswordValue = '';
   }
   else {
     const salt = generateSalt();
     config.fixedPasswordSalt = salt;
     config.fixedPasswordHash = hashFixedPassword(cleanPassword, salt);
+    config.fixedPasswordValue = cleanPassword;
   }
 
   saveConfig();
   return publicConfig();
+});
+
+ipcMain.handle('wol:configure', async () => {
+  const configured = await configureWakeOnLanWithElevation();
+  config.wakeOnLanConfigured = configured;
+  saveConfig();
+
+  return {
+    ok: configured,
+    message: configured
+      ? 'Wake-on-LAN icin Windows ag adaptoru ayarlari uygulandi. BIOS/UEFI destegi yine gereklidir.'
+      : 'Wake-on-LAN ayarlari uygulanamadi. Yonetici izni veya cihaz destegi gerekli olabilir.',
+    config: publicConfig(),
+  };
+});
+
+ipcMain.handle('wol:wake', async (_event, payload) => {
+  const adapters = getLocalNetworkAdapters();
+  const targetBroadcast = String(payload?.broadcastAddress || '').trim();
+  const broadcastAddress = targetBroadcast || adapters[0]?.broadcast || '255.255.255.255';
+
+  await sendMagicPacket({
+    macAddress: payload?.macAddress,
+    broadcastAddress,
+  });
+
+  return {
+    ok: true,
+    message: 'Wake-on-LAN paketi gonderildi.',
+  };
 });
 
 ipcMain.handle('config:get-secret-state', () => ({

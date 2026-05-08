@@ -66,16 +66,15 @@
         </div>
         <label class="field">
           <span>Sabit sifre</span>
-          <input id="fixedPasswordInput" type="password" placeholder="Istersen sabit sifre belirle">
-        </label>
-        <label class="field">
-          <span>Lisans modeli</span>
-          <input type="text" value="Bilgisayar koduna gore otomatik lisans" readonly>
+          <div class="input-inline">
+            <input id="fixedPasswordInput" type="password" placeholder="Istersen sabit sifre belirle">
+            <button id="toggleFixedPasswordButton" type="button" class="inline-button">Goster</button>
+          </div>
         </label>
         <div class="actions">
           <button id="savePasswordButton" class="primary">Sabit Sifreyi Kaydet</button>
           <button id="clearPasswordButton">Sabit Sifreyi Temizle</button>
-          <button id="shareScreenButton">Ekran Paylasimini Hazirla</button>
+          <button id="configureWakeOnLanButton">Wake-on-LAN Ayarla</button>
         </div>
         <div class="actions compact-actions">
           <button id="refreshLicenseButton">Lisansi Yenile</button>
@@ -83,13 +82,10 @@
           <button id="checkUpdatesButton">Guncellemeyi Kontrol Et</button>
         </div>
         <p id="licenseStatus" class="help">Lisans kontrol ediliyor...</p>
-        <p id="hostStatus" class="help">Baglanti geldiginde paylasmak istedigin ekran secilecek veya onceki secim kullanilacak.</p>
+        <p id="hostStatus" class="help">Wake-on-LAN icin once bu bilgisayarda ayari yap, sonra ayni agdaki kayitli cihazlari uyandirabilirsin.</p>
         <div class="mini-transfer">
-          <label class="field file-picker compact-field">
-            <span>Dosya gonder</span>
-            <input id="fileInput" type="file">
-          </label>
-          <button id="sendFileButton">Dosyayi Gonder</button>
+          <input id="fileInput" type="file" class="hidden-file-input">
+          <button id="sendFileButton">Dosya Gonder</button>
         </div>
         <p id="transferStatus" class="help">Gelen dosyalar Indirilenler/Seck Uzak Masaustu Gelenler klasorune kaydedilir.</p>
         <p id="connectedViewer" class="help">Bagli istemci yok.</p>
@@ -103,6 +99,7 @@
             <button id="tabAllButton" class="chip active">Tum</button>
             <button id="tabFavoritesButton" class="chip">Sik Kullanilan</button>
             <button id="tabRecentButton" class="chip">Son Baglanilan</button>
+            <button id="tabDiscoverButton" class="chip">Kesfet</button>
           </div>
         </div>
         <div id="savedList" class="saved-list"></div>
