@@ -55,8 +55,20 @@ function Convert-KeyToken {
     }
 }
 
+function Move-CursorIfNeeded {
+    param([object]$Payload)
+
+    if ($null -eq $Payload) {
+        return
+    }
+
+    if ($Payload.PSObject.Properties.Name -contains 'x' -and $Payload.PSObject.Properties.Name -contains 'y') {
+        [NativeInput]::SetCursorPos([int]$Payload.x, [int]$Payload.y) | Out-Null
+    }
+}
+
 function Send-KeyStroke {
-    param([hashtable]$Payload)
+    param([object]$Payload)
 
     $token = Convert-KeyToken -Key $Payload.key
     if (-not $token) {
@@ -130,10 +142,12 @@ while ($true) {
                 [NativeInput]::SetCursorPos([int]$payload.x, [int]$payload.y) | Out-Null
             }
             'click' {
+                Move-CursorIfNeeded -Payload $payload
                 Invoke-MouseButton -Button $payload.button -Down $true
                 Invoke-MouseButton -Button $payload.button -Down $false
             }
             'doubleClick' {
+                Move-CursorIfNeeded -Payload $payload
                 Invoke-MouseButton -Button $payload.button -Down $true
                 Invoke-MouseButton -Button $payload.button -Down $false
                 Start-Sleep -Milliseconds 80
