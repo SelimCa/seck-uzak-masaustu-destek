@@ -21,6 +21,7 @@
     hostSocketId: null,
     controlActive: false,
     lastMoveAt: 0,
+    remoteStream: null,
   };
 
   function setStatus(text) {
@@ -185,10 +186,34 @@
     };
   }
 
+  function preferMobileFriendlyVideoCodecs(peerConnection) {
+    if (typeof peerConnection.addTransceiver !== 'function' || !window.RTCRtpReceiver?.getCapabilities) {
+      return;
+    }
+
+    const transceiver = peerConnection.addTransceiver('video', { direction: 'recvonly' });
+    const capabilities = window.RTCRtpReceiver.getCapabilities('video');
+    const codecs = capabilities?.codecs || [];
+    const preferred = [
+      ...codecs.filter((codec) => /video\/H264/i.test(codec.mimeType)),
+      ...codecs.filter((codec) => /video\/VP8/i.test(codec.mimeType)),
+      ...codecs.filter((codec) => !/video\/(rtx|red|ulpfec)/i.test(codec.mimeType) && !/video\/(H264|VP8)/i.test(codec.mimeType)),
+    ];
+
+    if (preferred.length && typeof transceiver.setCodecPreferences === 'function') {
+      transceiver.setCodecPreferences(preferred);
+    }
+  }
+
   async function createViewerPeer() {
     state.peerConnection = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     });
+    refs.remoteVideo.muted = true;
+    refs.remoteVideo.setAttribute('muted', '');
+    refs.remoteVideo.setAttribute('playsinline', 'true');
+    refs.remoteVideo.setAttribute('webkit-playsinline', 'true');
+    preferMobileFriendlyVideoCodecs(state.peerConnection);
 
     state.peerConnection.onicecandidate = ({ candidate }) => {
       if (!candidate || !state.hostSocketId) {
@@ -202,9 +227,22 @@
     };
 
     state.peerConnection.ontrack = (event) => {
-      const [stream] = event.streams;
-      refs.remoteVideo.srcObject = stream;
-      refs.remoteVideo.play().catch(() => {});
+      const [stream] = event.streams || [];
+      const resolvedStream = stream || (() => {
+        if (!state.remoteStream) {
+          state.remoteStream = new MediaStream();
+        }
+
+        if (event.track) {
+          state.remoteStream.addTrack(event.track);
+        }
+
+        return state.remoteStream;
+      })();
+      refs.remoteVideo.srcObject = resolvedStream;
+      refs.remoteVideo.play().catch((error) => {
+        setStatus(`Video baslatilamadi: ${error.message}`);
+      });
       hideOverlay();
     };
 
@@ -214,7 +252,7 @@
     });
     setupDataChannel(channel);
 
-    const offer = await state.peerConnection.createOffer({ offerToReceiveVideo: true });
+    const offer = await state.peerConnection.createOffer();
     await state.peerConnection.setLocalDescription(offer);
 
     state.socket.emit('signal:relay', {
@@ -236,10 +274,51 @@
 
     state.dataChannel = null;
     state.hostSocketId = null;
+    state.remoteStream = null;
     refs.remoteVideo.srcObject = null;
     deactivateControl();
     showOverlay(overlayText);
     setStatus(statusText);
+  }
+
+  async function enterFullscreen() {
+    const candidates = [refs.remoteSurface, refs.remoteVideo, document.documentElement].filter(Boolean);
+
+    for (const element of candidates) {
+      try {
+        if (typeof element.requestFullscreen === 'function') {
+          await element.requestFullscreen();
+          return true;
+        }
+
+        if (typeof element.webkitRequestFullscreen === 'function') {
+          element.webkitRequestFullscreen();
+          return true;
+        }
+      }
+      catch {
+      }
+    }
+
+    return false;
+  }
+
+  async function exitFullscreen() {
+    try {
+      if (typeof document.exitFullscreen === 'function') {
+        await document.exitFullscreen();
+        return true;
+      }
+
+      if (typeof document.webkitExitFullscreen === 'function') {
+        document.webkitExitFullscreen();
+        return true;
+      }
+    }
+    catch {
+    }
+
+    return false;
   }
 
   function connect() {
@@ -309,19 +388,15 @@
 
   refs.fullscreenButton.addEventListener('click', async () => {
     if (!document.fullscreenElement) {
-      if (refs.remoteSurface.requestFullscreen) {
-        await refs.remoteSurface.requestFullscreen();
-      }
-      else if (refs.remoteSurface.webkitRequestFullscreen) {
-        refs.remoteSurface.webkitRequestFullscreen();
+      const entered = await enterFullscreen();
+      if (!entered) {
+        setStatus('Tam ekran acilamadi. Tarayici izni veya pencere kisiti olabilir.');
       }
     }
     else {
-      if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-      else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
+      const exited = await exitFullscreen();
+      if (!exited) {
+        setStatus('Tam ekrandan cikilamadi.');
       }
     }
   });
